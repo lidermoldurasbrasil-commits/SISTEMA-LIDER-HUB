@@ -2388,75 +2388,231 @@ export default function KanbanBoard() {
         </div>
       )}
 
-      {/* Modal Etiquetas Editáveis */}
-      {modalLabelAberto && (
+      {/* Modal Etiquetas Estilo Trello */}
+      {modalLabelAberto && cardSelecionado && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Etiquetas</h2>
-              <button onClick={() => setModalLabelAberto(false)} className="text-gray-500 hover:text-gray-700">
-                <X className="w-6 h-6" />
+          <div className="bg-white rounded-lg max-w-sm w-full p-0 shadow-2xl">
+            {/* Header */}
+            <div className="flex justify-between items-center px-4 py-3 border-b">
+              <button
+                onClick={() => {
+                  if (criandoLabel || editandoLabel) {
+                    setCriandoLabel(false);
+                    setEditandoLabel(null);
+                    setNovaLabel({ name: '', color: 'red' });
+                  }
+                }}
+                className={`${criandoLabel || editandoLabel ? '' : 'invisible'}`}
+              >
+                <ArrowRight className="w-5 h-5 text-gray-600 transform rotate-180" />
+              </button>
+              <h2 className="text-sm font-semibold text-gray-700">
+                {criandoLabel ? 'Criar etiqueta' : editandoLabel ? 'Editar etiqueta' : 'Etiquetas'}
+              </h2>
+              <button onClick={() => {
+                setModalLabelAberto(false);
+                setCriandoLabel(false);
+                setEditandoLabel(null);
+                setBuscaLabel('');
+              }} className="text-gray-500 hover:text-gray-700">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-4">
-              {LABEL_COLORS.map((color, index) => {
-                const labelAtiva = labelsEditando.find(l => l.color === color.value);
-                const isAtiva = !!labelAtiva;
-
-                return (
-                  <div key={color.value} className="flex items-center gap-3">
-                    <button
-                      onClick={() => adicionarLabelEditavel(color.value)}
-                      className={`w-12 h-8 rounded ${isAtiva ? 'ring-2 ring-offset-2 ring-gray-400' : ''}`}
-                      style={{ backgroundColor: color.hex }}
-                    />
-                    
-                    <div className="flex-1">
-                      {isAtiva ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={labelAtiva?.name !== undefined ? labelAtiva.name : ''}
-                            onChange={(e) => {
-                              const idx = labelsEditando.findIndex(l => l.color === color.value);
-                              if (idx !== -1) atualizarNomeLabel(idx, e.target.value);
-                            }}
-                            onFocus={() => setEditandoLabelIndex(index)}
-                            onBlur={() => setEditandoLabelIndex(null)}
-                            placeholder={`Digite o nome da etiqueta`}
-                            className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm"
-                          />
-                          <button
-                            onClick={() => adicionarLabelEditavel(color.value)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-700">{color.label}</span>
-                      )}
+            {/* Criar/Editar Label */}
+            {(criandoLabel || editandoLabel) ? (
+              <div className="p-4 space-y-3">
+                {/* Preview */}
+                <div className="mb-3">
+                  <div className="text-xs font-medium text-gray-700 mb-2">Prévia:</div>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="px-3 py-1.5 rounded-md text-white text-sm font-medium shadow-sm"
+                      style={{ backgroundColor: LABEL_COLORS.find(c => c.value === (editandoLabel?.color || novaLabel.color))?.hex }}
+                    >
+                      {(editandoLabel?.name || novaLabel.name) || 'Nome da etiqueta'}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
 
-            <div className="mt-6 pt-6 border-t flex gap-3">
-              <button
-                onClick={() => setModalLabelAberto(false)}
-                className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={salvarLabels}
-                className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-              >
-                Salvar
-              </button>
-            </div>
+                {/* Título */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Título</label>
+                  <input
+                    type="text"
+                    value={editandoLabel ? editandoLabel.name : novaLabel.name}
+                    onChange={(e) => {
+                      if (editandoLabel) {
+                        setEditandoLabel({ ...editandoLabel, name: e.target.value });
+                      } else {
+                        setNovaLabel({ ...novaLabel, name: e.target.value });
+                      }
+                    }}
+                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                    placeholder="Digite o nome da etiqueta"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Selecionar Cor */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Selecionar uma cor</label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {LABEL_COLORS.map((color) => (
+                      <button
+                        key={color.value}
+                        onClick={() => {
+                          if (editandoLabel) {
+                            setEditandoLabel({ ...editandoLabel, color: color.value });
+                          } else {
+                            setNovaLabel({ ...novaLabel, color: color.value });
+                          }
+                        }}
+                        className={`h-8 rounded-lg transition-transform hover:scale-110 ${
+                          (editandoLabel?.color || novaLabel.color) === color.value
+                            ? 'ring-2 ring-offset-2 ring-indigo-500 scale-110'
+                            : ''
+                        }`}
+                        style={{ backgroundColor: color.hex }}
+                        title={color.label}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Botões */}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      if (editandoLabel) {
+                        // Salvar edição
+                        const novasLabels = labelsEditando.map(l =>
+                          l.color === editandoLabel.originalColor ? editandoLabel : l
+                        );
+                        setLabelsEditando(novasLabels);
+                        salvarLabels(novasLabels);
+                        setEditandoLabel(null);
+                      } else {
+                        // Criar nova
+                        const novasLabels = [...labelsEditando, { ...novaLabel }];
+                        setLabelsEditando(novasLabels);
+                        salvarLabels(novasLabels);
+                        setCriandoLabel(false);
+                        setNovaLabel({ name: '', color: 'red' });
+                      }
+                    }}
+                    className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium text-sm disabled:opacity-50"
+                    disabled={editandoLabel ? !editandoLabel.name.trim() : !novaLabel.name.trim()}
+                  >
+                    {editandoLabel ? 'Salvar' : 'Criar'}
+                  </button>
+                  {editandoLabel && (
+                    <button
+                      onClick={() => {
+                        // Remover label
+                        const novasLabels = labelsEditando.filter(l => l.color !== editandoLabel.originalColor);
+                        setLabelsEditando(novasLabels);
+                        salvarLabels(novasLabels);
+                        setEditandoLabel(null);
+                      }}
+                      className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium text-sm"
+                    >
+                      Deletar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Buscar */}
+                <div className="p-3 border-b">
+                  <input
+                    type="text"
+                    value={buscaLabel}
+                    onChange={(e) => setBuscaLabel(e.target.value)}
+                    placeholder="Buscar etiquetas..."
+                    className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200"
+                  />
+                </div>
+
+                {/* Lista de Labels com Checkboxes */}
+                <div className="p-2 max-h-64 overflow-y-auto">
+                  <div className="text-xs font-medium text-gray-600 mb-2 px-2">ETIQUETAS</div>
+                  {LABEL_COLORS.filter(color => {
+                    const label = labelsEditando.find(l => l.color === color.value);
+                    const searchTerm = buscaLabel.toLowerCase();
+                    return !searchTerm || 
+                           color.label.toLowerCase().includes(searchTerm) ||
+                           (label?.name && label.name.toLowerCase().includes(searchTerm));
+                  }).map((color) => {
+                    const labelExistente = labelsEditando.find(l => l.color === color.value);
+                    const isChecked = !!labelExistente;
+                    
+                    return (
+                      <div key={color.value} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-md group">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              // Remover
+                              const novasLabels = labelsEditando.filter(l => l.color !== color.value);
+                              setLabelsEditando(novasLabels);
+                              salvarLabels(novasLabels);
+                            } else {
+                              // Adicionar
+                              const novasLabels = [...labelsEditando, { name: '', color: color.value }];
+                              setLabelsEditando(novasLabels);
+                              salvarLabels(novasLabels);
+                            }
+                          }}
+                          className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                        />
+                        <div
+                          className="flex-1 px-3 py-1.5 rounded-md text-white text-sm font-medium cursor-pointer"
+                          style={{ backgroundColor: color.hex }}
+                          onClick={() => {
+                            if (isChecked) {
+                              const novasLabels = labelsEditando.filter(l => l.color !== color.value);
+                              setLabelsEditando(novasLabels);
+                              salvarLabels(novasLabels);
+                            } else {
+                              const novasLabels = [...labelsEditando, { name: '', color: color.value }];
+                              setLabelsEditando(novasLabels);
+                              salvarLabels(novasLabels);
+                            }
+                          }}
+                        >
+                          {labelExistente?.name || color.label}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditandoLabel({ 
+                              name: labelExistente?.name || '', 
+                              color: color.value,
+                              originalColor: color.value
+                            });
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded transition-opacity"
+                        >
+                          <Edit2 className="w-4 h-4 text-gray-600" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Criar Nova Etiqueta */}
+                <div className="p-2 border-t">
+                  <button
+                    onClick={() => setCriandoLabel(true)}
+                    className="w-full text-left px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+                  >
+                    Criar nova etiqueta
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
