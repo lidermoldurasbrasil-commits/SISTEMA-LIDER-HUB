@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Plus, X, Edit2, Trash2, MoreVertical, Tag, Calendar, CheckSquare, MessageSquare, Clock, User } from 'lucide-react';
+import { Plus, X, Edit2, Trash2, MoreVertical, Tag, Calendar, CheckSquare, MessageSquare, Clock, User, Paperclip, Copy, Archive, ArrowRight, Activity } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
@@ -26,6 +26,7 @@ export default function KanbanBoard() {
   const [cardEditando, setCardEditando] = useState(null);
   const [cardSelecionado, setCardSelecionado] = useState(null);
   const [colunaIdParaNovoCard, setColunaIdParaNovoCard] = useState(null);
+  const [abaAtiva, setAbaAtiva] = useState('detalhes'); // detalhes, atividades
 
   // Form states
   const [formColuna, setFormColuna] = useState({ titulo: '', cor: null });
@@ -33,12 +34,20 @@ export default function KanbanBoard() {
     titulo: '',
     descricao: '',
     labels: [],
-    data_vencimento: ''
+    data_vencimento: '',
+    assignees: []
   });
 
-  // Checklist e comentários
+  // Estados para funcionalidades extras
   const [novoItemChecklist, setNovoItemChecklist] = useState('');
   const [novoComentario, setNovoComentario] = useState('');
+  const [novoAnexo, setNovoAnexo] = useState({ nome: '', url: '', tipo: 'link' });
+  const [novoMembro, setNovoMembro] = useState('');
+  const [modalAnexoAberto, setModalAnexoAberto] = useState(false);
+  const [modalMoverAberto, setModalMoverAberto] = useState(false);
+  const [modalCopiarAberto, setModalCopiarAberto] = useState(false);
+  const [colunaSelecionadaMover, setColunaSelecionadaMover] = useState(null);
+  const [modalLabelAberto, setModalLabelAberto] = useState(false);
 
   useEffect(() => {
     carregarDados();
@@ -48,23 +57,20 @@ export default function KanbanBoard() {
     try {
       const token = localStorage.getItem('token');
       
-      // Carregar colunas
       const colunasResponse = await axios.get(`${BACKEND_URL}/api/kanban/colunas`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       setColunas(colunasResponse.data);
       
-      // Carregar todos os cards
       const cardsResponse = await axios.get(`${BACKEND_URL}/api/kanban/cards`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Organizar cards por coluna
       const cardsOrganizados = {};
       colunasResponse.data.forEach(col => {
         cardsOrganizados[col.id] = cardsResponse.data
-          .filter(card => card.coluna_id === col.id)
+          .filter(card => card.coluna_id === col.id && !card.arquivado)
           .sort((a, b) => a.posicao - b.posicao);
       });
       
@@ -77,88 +83,52 @@ export default function KanbanBoard() {
     }
   };
 
-  // ========== DRAG AND DROP ==========
   const onDragEnd = async (result) => {
     const { source, destination, type } = result;
-
     if (!destination) return;
 
     if (type === 'column') {
-      // Reordenar colunas
       const novasColunas = Array.from(colunas);
       const [removed] = novasColunas.splice(source.index, 1);
       novasColunas.splice(destination.index, 0, removed);
-
-      // Atualizar posições
-      const colunasComPosicao = novasColunas.map((col, index) => ({
-        id: col.id,
-        posicao: index
-      }));
-
+      const colunasComPosicao = novasColunas.map((col, index) => ({ id: col.id, posicao: index }));
       setColunas(novasColunas);
 
       try {
         const token = localStorage.getItem('token');
-        await axios.post(
-          `${BACKEND_URL}/api/kanban/colunas/reordenar`,
-          { colunas: colunasComPosicao },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.post(`${BACKEND_URL}/api/kanban/colunas/reordenar`, { colunas: colunasComPosicao }, { headers: { Authorization: `Bearer ${token}` } });
       } catch (error) {
-        console.error('Erro ao reordenar colunas:', error);
         toast.error('Erro ao reordenar colunas');
         carregarDados();
       }
     } else {
-      // Mover card
       const colunaOrigemId = source.droppableId;
       const colunaDestinoId = destination.droppableId;
 
       if (colunaOrigemId === colunaDestinoId) {
-        // Mover dentro da mesma coluna
         const novosCards = Array.from(cards[colunaOrigemId]);
         const [cardMovido] = novosCards.splice(source.index, 1);
         novosCards.splice(destination.index, 0, cardMovido);
-
         setCards({ ...cards, [colunaOrigemId]: novosCards });
       } else {
-        // Mover para outra coluna
         const cardsOrigem = Array.from(cards[colunaOrigemId]);
         const cardsDestino = Array.from(cards[colunaDestinoId] || []);
-
         const [cardMovido] = cardsOrigem.splice(source.index, 1);
         cardsDestino.splice(destination.index, 0, cardMovido);
-
-        setCards({
-          ...cards,
-          [colunaOrigemId]: cardsOrigem,
-          [colunaDestinoId]: cardsDestino
-        });
+        setCards({ ...cards, [colunaOrigemId]: cardsOrigem, [colunaDestinoId]: cardsDestino });
       }
 
-      // Atualizar no backend
       try {
         const token = localStorage.getItem('token');
         const cardId = cards[colunaOrigemId][source.index].id;
-
-        await axios.post(
-          `${BACKEND_URL}/api/kanban/cards/mover`,
-          {
-            card_id: cardId,
-            coluna_destino_id: colunaDestinoId,
-            nova_posicao: destination.index
-          },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.post(`${BACKEND_URL}/api/kanban/cards/mover`, { card_id: cardId, coluna_destino_id: colunaDestinoId, nova_posicao: destination.index }, { headers: { Authorization: `Bearer ${token}` } });
       } catch (error) {
-        console.error('Erro ao mover card:', error);
         toast.error('Erro ao mover card');
         carregarDados();
       }
     }
   };
 
-  // ========== COLUNAS ==========
   const abrirModalColuna = (coluna = null) => {
     if (coluna) {
       setColunaEditando(coluna);
@@ -178,68 +148,41 @@ export default function KanbanBoard() {
 
     try {
       const token = localStorage.getItem('token');
-
       if (colunaEditando) {
-        // Atualizar
-        await axios.put(
-          `${BACKEND_URL}/api/kanban/colunas/${colunaEditando.id}`,
-          formColuna,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.put(`${BACKEND_URL}/api/kanban/colunas/${colunaEditando.id}`, formColuna, { headers: { Authorization: `Bearer ${token}` } });
         toast.success('Coluna atualizada!');
       } else {
-        // Criar
-        await axios.post(
-          `${BACKEND_URL}/api/kanban/colunas`,
-          formColuna,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.post(`${BACKEND_URL}/api/kanban/colunas`, formColuna, { headers: { Authorization: `Bearer ${token}` } });
         toast.success('Coluna criada!');
       }
-
       setModalColunaAberto(false);
       carregarDados();
     } catch (error) {
-      console.error('Erro ao salvar coluna:', error);
       toast.error('Erro ao salvar coluna');
     }
   };
 
   const deletarColuna = async (colunaId) => {
-    if (!window.confirm('Tem certeza? Isso vai deletar todos os cards desta coluna também.')) {
-      return;
-    }
-
+    if (!window.confirm('Tem certeza? Isso vai deletar todos os cards desta coluna também.')) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${BACKEND_URL}/api/kanban/colunas/${colunaId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.delete(`${BACKEND_URL}/api/kanban/colunas/${colunaId}`, { headers: { Authorization: `Bearer ${token}` } });
       toast.success('Coluna deletada!');
       carregarDados();
     } catch (error) {
-      console.error('Erro ao deletar coluna:', error);
       toast.error('Erro ao deletar coluna');
     }
   };
 
-  // ========== CARDS ==========
   const abrirModalCard = (colunaId, card = null) => {
     setColunaIdParaNovoCard(colunaId);
-
     if (card) {
       setCardEditando(card);
-      setFormCard({
-        titulo: card.titulo,
-        descricao: card.descricao || '',
-        labels: card.labels || [],
-        data_vencimento: card.data_vencimento || ''
-      });
+      setFormCard({ titulo: card.titulo, descricao: card.descricao || '', labels: card.labels || [], data_vencimento: card.data_vencimento || '', assignees: card.assignees || [] });
     } else {
       setCardEditando(null);
-      setFormCard({ titulo: '', descricao: '', labels: [], data_vencimento: '' });
+      setFormCard({ titulo: '', descricao: '', labels: [], data_vencimento: '', assignees: [] });
     }
-
     setModalCardAberto(true);
   };
 
@@ -251,48 +194,29 @@ export default function KanbanBoard() {
 
     try {
       const token = localStorage.getItem('token');
-
       if (cardEditando) {
-        // Atualizar
-        await axios.put(
-          `${BACKEND_URL}/api/kanban/cards/${cardEditando.id}`,
-          formCard,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.put(`${BACKEND_URL}/api/kanban/cards/${cardEditando.id}`, formCard, { headers: { Authorization: `Bearer ${token}` } });
         toast.success('Card atualizado!');
       } else {
-        // Criar
-        await axios.post(
-          `${BACKEND_URL}/api/kanban/cards`,
-          { ...formCard, coluna_id: colunaIdParaNovoCard },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.post(`${BACKEND_URL}/api/kanban/cards`, { ...formCard, coluna_id: colunaIdParaNovoCard }, { headers: { Authorization: `Bearer ${token}` } });
         toast.success('Card criado!');
       }
-
       setModalCardAberto(false);
       carregarDados();
     } catch (error) {
-      console.error('Erro ao salvar card:', error);
       toast.error('Erro ao salvar card');
     }
   };
 
   const deletarCard = async (cardId) => {
-    if (!window.confirm('Tem certeza que deseja deletar este card?')) {
-      return;
-    }
-
+    if (!window.confirm('Tem certeza que deseja deletar este card?')) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${BACKEND_URL}/api/kanban/cards/${cardId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.delete(`${BACKEND_URL}/api/kanban/cards/${cardId}`, { headers: { Authorization: `Bearer ${token}` } });
       toast.success('Card deletado!');
       setCardDetalheAberto(false);
       carregarDados();
     } catch (error) {
-      console.error('Erro ao deletar card:', error);
       toast.error('Erro ao deletar card');
     }
   };
@@ -300,53 +224,33 @@ export default function KanbanBoard() {
   const abrirDetalheCard = async (card) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${card.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${card.id}`, { headers: { Authorization: `Bearer ${token}` } });
       setCardSelecionado(response.data);
       setCardDetalheAberto(true);
+      setAbaAtiva('detalhes');
     } catch (error) {
-      console.error('Erro ao carregar card:', error);
       toast.error('Erro ao carregar detalhes do card');
     }
   };
 
-  // ========== LABELS ==========
   const adicionarLabel = (color) => {
-    if (formCard.labels.some(l => l.color === color)) {
-      setFormCard({
-        ...formCard,
-        labels: formCard.labels.filter(l => l.color !== color)
-      });
+    const labelExiste = formCard.labels.some(l => l.color === color);
+    if (labelExiste) {
+      setFormCard({ ...formCard, labels: formCard.labels.filter(l => l.color !== color) });
     } else {
-      setFormCard({
-        ...formCard,
-        labels: [...formCard.labels, { color, name: '' }]
-      });
+      setFormCard({ ...formCard, labels: [...formCard.labels, { color, name: '' }] });
     }
   };
 
-  // ========== CHECKLIST ==========
   const adicionarItemChecklist = async () => {
     if (!novoItemChecklist.trim() || !cardSelecionado) return;
-
     try {
       const token = localStorage.getItem('token');
-      await axios.post(
-        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist`,
-        { texto: novoItemChecklist.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
+      await axios.post(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist`, { texto: novoItemChecklist.trim() }, { headers: { Authorization: `Bearer ${token}` } });
       setNovoItemChecklist('');
-      
-      // Recarregar card
-      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
       setCardSelecionado(response.data);
     } catch (error) {
-      console.error('Erro ao adicionar item:', error);
       toast.error('Erro ao adicionar item');
     }
   };
@@ -354,47 +258,120 @@ export default function KanbanBoard() {
   const toggleItemChecklist = async (itemId, concluido) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(
-        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist/${itemId}`,
-        { concluido: !concluido },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // Recarregar card
-      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.put(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist/${itemId}`, { concluido: !concluido }, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
       setCardSelecionado(response.data);
     } catch (error) {
-      console.error('Erro ao atualizar item:', error);
+      console.error('Erro ao atualizar item');
     }
   };
 
-  // ========== COMENTÁRIOS ==========
   const adicionarComentario = async () => {
     if (!novoComentario.trim() || !cardSelecionado) return;
-
     try {
       const token = localStorage.getItem('token');
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const autor = user.nome || user.username || 'Usuário';
-
-      await axios.post(
-        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/comentario`,
-        { autor, texto: novoComentario.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
+      await axios.post(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/comentario`, { autor, texto: novoComentario.trim() }, { headers: { Authorization: `Bearer ${token}` } });
       setNovoComentario('');
-      
-      // Recarregar card
-      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
       setCardSelecionado(response.data);
     } catch (error) {
-      console.error('Erro ao adicionar comentário:', error);
       toast.error('Erro ao adicionar comentário');
+    }
+  };
+
+  const adicionarAnexo = async () => {
+    if (!novoAnexo.nome.trim() || !novoAnexo.url.trim() || !cardSelecionado) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/anexo`, novoAnexo, { headers: { Authorization: `Bearer ${token}` } });
+      setNovoAnexo({ nome: '', url: '', tipo: 'link' });
+      setModalAnexoAberto(false);
+      toast.success('Anexo adicionado!');
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao adicionar anexo');
+    }
+  };
+
+  const removerAnexo = async (anexoId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/anexo/${anexoId}`, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Anexo removido!');
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao remover anexo');
+    }
+  };
+
+  const adicionarMembro = async () => {
+    if (!novoMembro.trim() || !cardSelecionado) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/membro`, { username: novoMembro.trim() }, { headers: { Authorization: `Bearer ${token}` } });
+      setNovoMembro('');
+      toast.success('Membro adicionado!');
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao adicionar membro');
+    }
+  };
+
+  const removerMembro = async (usuarioId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/membro/${usuarioId}`, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Membro removido!');
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao remover membro');
+    }
+  };
+
+  const copiarCard = async () => {
+    if (!cardSelecionado) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/copiar`, { coluna_destino_id: colunaSelecionadaMover || cardSelecionado.coluna_id }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Card copiado!');
+      setModalCopiarAberto(false);
+      setCardDetalheAberto(false);
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao copiar card');
+    }
+  };
+
+  const moverCard = async () => {
+    if (!cardSelecionado || !colunaSelecionadaMover) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${BACKEND_URL}/api/kanban/cards/mover`, { card_id: cardSelecionado.id, coluna_destino_id: colunaSelecionadaMover, nova_posicao: 0 }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Card movido!');
+      setModalMoverAberto(false);
+      setCardDetalheAberto(false);
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao mover card');
+    }
+  };
+
+  const arquivarCard = async () => {
+    if (!cardSelecionado) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/arquivar`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Card arquivado!');
+      setCardDetalheAberto(false);
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao arquivar card');
     }
   };
 
@@ -415,10 +392,7 @@ export default function KanbanBoard() {
             <h1 className="text-2xl font-bold text-gray-900">Planejamento - Kanban Board</h1>
             <p className="text-gray-600 text-sm mt-1">Organize suas tarefas com drag and drop</p>
           </div>
-          <button
-            onClick={() => abrirModalColuna()}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
-          >
+          <button onClick={() => abrirModalColuna()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
             <Plus className="w-5 h-5" />
             Nova Coluna
           </button>
@@ -430,92 +404,55 @@ export default function KanbanBoard() {
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="board" direction="horizontal" type="column">
             {(provided) => (
-              <div
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-                className="flex gap-4 h-full"
-                style={{ minWidth: 'min-content' }}
-              >
+              <div ref={provided.innerRef} {...provided.droppableProps} className="flex gap-4 h-full" style={{ minWidth: 'min-content' }}>
                 {colunas.map((coluna, index) => (
                   <Draggable key={coluna.id} draggableId={coluna.id} index={index}>
                     {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        className={`flex-shrink-0 w-80 bg-white rounded-lg shadow-md flex flex-col ${
-                          snapshot.isDragging ? 'opacity-50' : ''
-                        }`}
-                        style={{ maxHeight: 'calc(100vh - 180px)', ...provided.draggableProps.style }}
-                      >
-                        {/* Header da Coluna */}
-                        <div
-                          {...provided.dragHandleProps}
-                          className="px-4 py-3 border-b cursor-move flex justify-between items-center"
-                          style={coluna.cor ? { borderTopColor: coluna.cor, borderTopWidth: '4px' } : {}}
-                        >
+                      <div ref={provided.innerRef} {...provided.draggableProps} className={`flex-shrink-0 w-80 bg-white rounded-lg shadow-md flex flex-col ${snapshot.isDragging ? 'opacity-50' : ''}`} style={{ maxHeight: 'calc(100vh - 180px)', ...provided.draggableProps.style }}>
+                        <div {...provided.dragHandleProps} className="px-4 py-3 border-b cursor-move flex justify-between items-center" style={coluna.cor ? { borderTopColor: coluna.cor, borderTopWidth: '4px' } : {}}>
                           <h3 className="font-semibold text-gray-900">{coluna.titulo}</h3>
                           <div className="flex gap-1">
-                            <button
-                              onClick={() => abrirModalColuna(coluna)}
-                              className="p-1 hover:bg-gray-100 rounded"
-                            >
+                            <button onClick={() => abrirModalColuna(coluna)} className="p-1 hover:bg-gray-100 rounded">
                               <Edit2 className="w-4 h-4 text-gray-600" />
                             </button>
-                            <button
-                              onClick={() => deletarColuna(coluna.id)}
-                              className="p-1 hover:bg-gray-100 rounded"
-                            >
+                            <button onClick={() => deletarColuna(coluna.id)} className="p-1 hover:bg-gray-100 rounded">
                               <Trash2 className="w-4 h-4 text-red-600" />
                             </button>
                           </div>
                         </div>
 
-                        {/* Cards da Coluna */}
                         <Droppable droppableId={coluna.id} type="card">
                           {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.droppableProps}
-                              className={`flex-1 overflow-y-auto p-3 space-y-2 ${
-                                snapshot.isDraggingOver ? 'bg-indigo-50' : ''
-                              }`}
-                            >
+                            <div ref={provided.innerRef} {...provided.droppableProps} className={`flex-1 overflow-y-auto p-3 space-y-2 ${snapshot.isDraggingOver ? 'bg-indigo-50' : ''}`}>
                               {(cards[coluna.id] || []).map((card, cardIndex) => (
                                 <Draggable key={card.id} draggableId={card.id} index={cardIndex}>
                                   {(provided, snapshot) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                      {...provided.dragHandleProps}
-                                      onClick={() => abrirDetalheCard(card)}
-                                      className={`bg-white rounded-lg shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow ${
-                                        snapshot.isDragging ? 'opacity-50 rotate-2' : ''
-                                      }`}
-                                    >
-                                      {/* Labels */}
+                                    <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onClick={() => abrirDetalheCard(card)} className={`bg-white rounded-lg shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow ${snapshot.isDragging ? 'opacity-50 rotate-2' : ''}`}>
                                       {card.labels && card.labels.length > 0 && (
                                         <div className="flex gap-1 mb-2 flex-wrap">
                                           {card.labels.map((label, i) => (
-                                            <div
-                                              key={i}
-                                              className="h-2 w-10 rounded-full"
-                                              style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }}
-                                            />
+                                            <div key={i} className="h-2 w-10 rounded-full" style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }} />
                                           ))}
                                         </div>
                                       )}
-
-                                      {/* Título */}
                                       <h4 className="text-sm font-medium text-gray-900 mb-2">{card.titulo}</h4>
-
-                                      {/* Badges */}
                                       <div className="flex items-center gap-3 text-xs text-gray-600">
+                                        {card.assignees && card.assignees.length > 0 && (
+                                          <div className="flex items-center gap-1">
+                                            <User className="w-3 h-3" />
+                                            <span>{card.assignees.length}</span>
+                                          </div>
+                                        )}
                                         {card.checklist && card.checklist.length > 0 && (
                                           <div className="flex items-center gap-1">
                                             <CheckSquare className="w-3 h-3" />
-                                            <span>
-                                              {card.checklist.filter(i => i.concluido).length}/{card.checklist.length}
-                                            </span>
+                                            <span>{card.checklist.filter(i => i.concluido).length}/{card.checklist.length}</span>
+                                          </div>
+                                        )}
+                                        {card.anexos && card.anexos.length > 0 && (
+                                          <div className="flex items-center gap-1">
+                                            <Paperclip className="w-3 h-3" />
+                                            <span>{card.anexos.length}</span>
                                           </div>
                                         )}
                                         {card.comentarios && card.comentarios.length > 0 && (
@@ -540,12 +477,8 @@ export default function KanbanBoard() {
                           )}
                         </Droppable>
 
-                        {/* Adicionar Card */}
                         <div className="p-3 border-t">
-                          <button
-                            onClick={() => abrirModalCard(coluna.id)}
-                            className="w-full text-left text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded flex items-center gap-2"
-                          >
+                          <button onClick={() => abrirModalCard(coluna.id)} className="w-full text-left text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded flex items-center gap-2">
                             <Plus className="w-4 h-4" />
                             Adicionar card
                           </button>
@@ -565,298 +498,328 @@ export default function KanbanBoard() {
       {modalColunaAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {colunaEditando ? 'Editar Coluna' : 'Nova Coluna'}
-            </h2>
-
+            <h2 className="text-xl font-bold text-gray-900 mb-4">{colunaEditando ? 'Editar Coluna' : 'Nova Coluna'}</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
-                <input
-                  type="text"
-                  value={formColuna.titulo}
-                  onChange={(e) => setFormColuna({ ...formColuna, titulo: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="Ex: Segunda, A Fazer, Em Progresso..."
-                />
+                <input type="text" value={formColuna.titulo} onChange={(e) => setFormColuna({ ...formColuna, titulo: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Ex: Segunda, A Fazer, Em Progresso..." />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Cor (opcional)</label>
                 <div className="flex gap-2 flex-wrap">
                   {LABEL_COLORS.map((color) => (
-                    <button
-                      key={color.value}
-                      onClick={() => setFormColuna({ ...formColuna, cor: color.hex })}
-                      className={`w-10 h-10 rounded-lg ${
-                        formColuna.cor === color.hex ? 'ring-2 ring-offset-2 ring-gray-400' : ''
-                      }`}
-                      style={{ backgroundColor: color.hex }}
-                    />
+                    <button key={color.value} onClick={() => setFormColuna({ ...formColuna, cor: color.hex })} className={`w-10 h-10 rounded-lg ${formColuna.cor === color.hex ? 'ring-2 ring-offset-2 ring-gray-400' : ''}`} style={{ backgroundColor: color.hex }} />
                   ))}
-                  <button
-                    onClick={() => setFormColuna({ ...formColuna, cor: null })}
-                    className={`w-10 h-10 rounded-lg border-2 border-gray-300 ${
-                      !formColuna.cor ? 'ring-2 ring-offset-2 ring-gray-400' : ''
-                    }`}
-                  >
+                  <button onClick={() => setFormColuna({ ...formColuna, cor: null })} className={`w-10 h-10 rounded-lg border-2 border-gray-300 ${!formColuna.cor ? 'ring-2 ring-offset-2 ring-gray-400' : ''}`}>
                     <X className="w-4 h-4 mx-auto text-gray-400" />
                   </button>
                 </div>
               </div>
             </div>
-
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setModalColunaAberto(false)}
-                className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={salvarColuna}
-                className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-              >
-                {colunaEditando ? 'Atualizar' : 'Criar'}
-              </button>
+              <button onClick={() => setModalColunaAberto(false)} className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">Cancelar</button>
+              <button onClick={salvarColuna} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">{colunaEditando ? 'Atualizar' : 'Criar'}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Card */}
+      {/* Modal Card Rápido */}
       {modalCardAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-lg max-w-2xl w-full p-6 my-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {cardEditando ? 'Editar Card' : 'Novo Card'}
-            </h2>
-
+            <h2 className="text-xl font-bold text-gray-900 mb-4">{cardEditando ? 'Editar Card' : 'Novo Card'}</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
-                <input
-                  type="text"
-                  value={formCard.titulo}
-                  onChange={(e) => setFormCard({ ...formCard, titulo: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="Ex: Pagar Marlon, Tirar Carro Nome Mateus..."
-                />
+                <input type="text" value={formCard.titulo} onChange={(e) => setFormCard({ ...formCard, titulo: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Ex: Pagar Marlon, Tirar Carro..." />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-                <textarea
-                  value={formCard.descricao}
-                  onChange={(e) => setFormCard({ ...formCard, descricao: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  rows="3"
-                  placeholder="Detalhes adicionais..."
-                />
+                <textarea value={formCard.descricao} onChange={(e) => setFormCard({ ...formCard, descricao: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" rows="3" placeholder="Detalhes adicionais..." />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Etiquetas</label>
                 <div className="flex gap-2 flex-wrap">
                   {LABEL_COLORS.map((color) => (
-                    <button
-                      key={color.value}
-                      onClick={() => adicionarLabel(color.value)}
-                      className={`px-4 py-2 rounded-lg text-white text-sm ${
-                        formCard.labels.some(l => l.color === color.value) ? 'ring-2 ring-offset-2 ring-gray-400' : ''
-                      }`}
-                      style={{ backgroundColor: color.hex }}
-                    >
-                      {color.label}
-                    </button>
+                    <button key={color.value} onClick={() => adicionarLabel(color.value)} className={`px-4 py-2 rounded-lg text-white text-sm ${formCard.labels.some(l => l.color === color.value) ? 'ring-2 ring-offset-2 ring-gray-400' : ''}`} style={{ backgroundColor: color.hex }}>{color.label}</button>
                   ))}
                 </div>
               </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setModalCardAberto(false)} className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">Cancelar</button>
+              <button onClick={salvarCard} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">{cardEditando ? 'Atualizar' : 'Criar Card'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento</label>
-                <input
-                  type="date"
-                  value={formCard.data_vencimento}
-                  onChange={(e) => setFormCard({ ...formCard, data_vencimento: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                />
+      {/* Modal Detalhes Completo do Card */}
+      {cardDetalheAberto && cardSelecionado && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-4xl w-full my-8 flex" style={{ maxHeight: '90vh' }}>
+            {/* Conteúdo Principal */}
+            <div className="flex-1 p-6 overflow-y-auto">
+              {/* Header */}
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">{cardSelecionado.titulo}</h2>
+                  {cardSelecionado.labels && cardSelecionado.labels.length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {cardSelecionado.labels.map((label, i) => (
+                        <span key={i} className="px-3 py-1 rounded-full text-white text-xs" style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }}>
+                          {LABEL_COLORS.find(l => l.value === label.color)?.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setCardDetalheAberto(false)} className="text-gray-500 hover:text-gray-700 ml-4">
+                  <X className="w-6 h-6" />
+                </button>
               </div>
+
+              {/* Abas */}
+              <div className="flex border-b mb-4">
+                <button onClick={() => setAbaAtiva('detalhes')} className={`px-4 py-2 font-medium ${abaAtiva === 'detalhes' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-600'}`}>Detalhes</button>
+                <button onClick={() => setAbaAtiva('atividades')} className={`px-4 py-2 font-medium ${abaAtiva === 'atividades' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-600'}`}>
+                  Atividades {cardSelecionado.atividades && cardSelecionado.atividades.length > 0 && `(${cardSelecionado.atividades.length})`}
+                </button>
+              </div>
+
+              {/* Conteúdo das Abas */}
+              {abaAtiva === 'detalhes' && (
+                <div className="space-y-6">
+                  {/* Membros */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Membros
+                    </h3>
+                    <div className="flex gap-2 flex-wrap mb-3">
+                      {cardSelecionado.assignees && cardSelecionado.assignees.length > 0 ? (
+                        cardSelecionado.assignees.map((membro, i) => (
+                          <div key={i} className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                            {membro}
+                            <button onClick={() => removerMembro(membro)} className="hover:text-indigo-900">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-500 text-sm">Nenhum membro atribuído</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="text" value={novoMembro} onChange={(e) => setNovoMembro(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && adicionarMembro()} placeholder="Nome do membro..." className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm" />
+                      <button onClick={adicionarMembro} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">Adicionar</button>
+                    </div>
+                  </div>
+
+                  {/* Descrição */}
+                  {cardSelecionado.descricao && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 mb-2">Descrição</h3>
+                      <p className="text-gray-900 whitespace-pre-wrap">{cardSelecionado.descricao}</p>
+                    </div>
+                  )}
+
+                  {/* Anexos */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <Paperclip className="w-4 h-4" />
+                      Anexos
+                    </h3>
+                    {cardSelecionado.anexos && cardSelecionado.anexos.length > 0 ? (
+                      <div className="space-y-2 mb-3">
+                        {cardSelecionado.anexos.map((anexo) => (
+                          <div key={anexo.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <Paperclip className="w-4 h-4 text-gray-600" />
+                              <div>
+                                <a href={anexo.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-indigo-600 hover:underline">{anexo.nome}</a>
+                                <p className="text-xs text-gray-500">Adicionado em {new Date(anexo.data).toLocaleDateString('pt-BR')}</p>
+                              </div>
+                            </div>
+                            <button onClick={() => removerAnexo(anexo.id)} className="text-red-600 hover:text-red-700">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm mb-3">Nenhum anexo</p>
+                    )}
+                    <button onClick={() => setModalAnexoAberto(true)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200 text-sm">Adicionar Anexo</button>
+                  </div>
+
+                  {/* Checklist */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <CheckSquare className="w-4 h-4" />
+                      Checklist
+                    </h3>
+                    {cardSelecionado.checklist && cardSelecionado.checklist.length > 0 ? (
+                      <div className="space-y-2 mb-3">
+                        {cardSelecionado.checklist.map((item) => (
+                          <div key={item.id} className="flex items-center gap-2">
+                            <input type="checkbox" checked={item.concluido} onChange={() => toggleItemChecklist(item.id, item.concluido)} className="w-4 h-4" />
+                            <span className={item.concluido ? 'line-through text-gray-500' : 'text-gray-900'}>{item.texto}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm mb-3">Nenhum item no checklist</p>
+                    )}
+                    <div className="flex gap-2">
+                      <input type="text" value={novoItemChecklist} onChange={(e) => setNovoItemChecklist(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && adicionarItemChecklist()} placeholder="Adicionar item..." className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm" />
+                      <button onClick={adicionarItemChecklist} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">Adicionar</button>
+                    </div>
+                  </div>
+
+                  {/* Comentários */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      Comentários
+                    </h3>
+                    {cardSelecionado.comentarios && cardSelecionado.comentarios.length > 0 ? (
+                      <div className="space-y-3 mb-3">
+                        {cardSelecionado.comentarios.map((comentario) => (
+                          <div key={comentario.id} className="bg-gray-50 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-sm text-gray-900">{comentario.autor}</span>
+                              <span className="text-xs text-gray-500">{new Date(comentario.data).toLocaleString('pt-BR')}</span>
+                            </div>
+                            <p className="text-gray-900 text-sm">{comentario.texto}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm mb-3">Nenhum comentário ainda</p>
+                    )}
+                    <div className="flex gap-2">
+                      <textarea value={novoComentario} onChange={(e) => setNovoComentario(e.target.value)} placeholder="Escreva um comentário..." className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm" rows="2" />
+                      <button onClick={adicionarComentario} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm self-end">Enviar</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {abaAtiva === 'atividades' && (
+                <div className="space-y-3">
+                  {cardSelecionado.atividades && cardSelecionado.atividades.length > 0 ? (
+                    cardSelecionado.atividades.map((atividade) => (
+                      <div key={atividade.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                        <Activity className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm text-gray-900">
+                            <span className="font-semibold">{atividade.usuario}</span> {atividade.descricao}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">{new Date(atividade.data).toLocaleString('pt-BR')}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-sm">Nenhuma atividade registrada</p>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setModalCardAberto(false)}
-                className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200"
-              >
-                Cancelar
+            {/* Sidebar de Ações */}
+            <div className="w-48 bg-gray-50 p-4 border-l flex flex-col gap-2">
+              <h3 className="text-xs font-semibold text-gray-700 uppercase mb-2">Ações</h3>
+              <button onClick={() => { setCardDetalheAberto(false); abrirModalCard(cardSelecionado.coluna_id, cardSelecionado); }} className="w-full bg-white hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
+                <Edit2 className="w-4 h-4" />
+                Editar
               </button>
-              <button
-                onClick={salvarCard}
-                className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-              >
-                {cardEditando ? 'Atualizar' : 'Criar Card'}
+              <button onClick={() => setModalMoverAberto(true)} className="w-full bg-white hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
+                <ArrowRight className="w-4 h-4" />
+                Mover
+              </button>
+              <button onClick={() => setModalCopiarAberto(true)} className="w-full bg-white hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
+                <Copy className="w-4 h-4" />
+                Copiar
+              </button>
+              <button onClick={() => setModalLabelAberto(true)} className="w-full bg-white hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
+                <Tag className="w-4 h-4" />
+                Etiquetas
+              </button>
+              <div className="border-t my-2"></div>
+              <button onClick={arquivarCard} className="w-full bg-white hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
+                <Archive className="w-4 h-4" />
+                Arquivar
+              </button>
+              <button onClick={() => deletarCard(cardSelecionado.id)} className="w-full bg-red-50 hover:bg-red-100 text-red-600 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
+                <Trash2 className="w-4 h-4" />
+                Deletar
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Detalhes do Card */}
-      {cardDetalheAberto && cardSelecionado && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-3xl w-full p-6 my-8 max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex justify-between items-start mb-6">
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">{cardSelecionado.titulo}</h2>
-                {cardSelecionado.labels && cardSelecionado.labels.length > 0 && (
-                  <div className="flex gap-2 flex-wrap">
-                    {cardSelecionado.labels.map((label, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 rounded-full text-white text-xs"
-                        style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }}
-                      >
-                        {LABEL_COLORS.find(l => l.value === label.color)?.label}
-                      </span>
-                    ))}
-                  </div>
-                )}
+      {/* Modal Anexo */}
+      {modalAnexoAberto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Adicionar Anexo</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do arquivo</label>
+                <input type="text" value={novoAnexo.nome} onChange={(e) => setNovoAnexo({ ...novoAnexo, nome: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Ex: Relatório.pdf" />
               </div>
-              <button
-                onClick={() => setCardDetalheAberto(false)}
-                className="text-gray-500 hover:text-gray-700 ml-4"
-              >
-                <X className="w-6 h-6" />
-              </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">URL/Link</label>
+                <input type="url" value={novoAnexo.url} onChange={(e) => setNovoAnexo({ ...novoAnexo, url: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="https://..." />
+              </div>
             </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setModalAnexoAberto(false)} className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">Cancelar</button>
+              <button onClick={adicionarAnexo} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">Adicionar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-            {/* Descrição */}
-            {cardSelecionado.descricao && (
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Descrição</h3>
-                <p className="text-gray-900 whitespace-pre-wrap">{cardSelecionado.descricao}</p>
-              </div>
-            )}
-
-            {/* Data de Vencimento */}
-            {cardSelecionado.data_vencimento && (
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Data de Vencimento</h3>
-                <div className="flex items-center gap-2 text-gray-900">
-                  <Clock className="w-4 h-4" />
-                  {new Date(cardSelecionado.data_vencimento).toLocaleDateString('pt-BR', {
-                    day: '2-digit',
-                    month: 'long',
-                    year: 'numeric'
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Checklist */}
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <CheckSquare className="w-4 h-4" />
-                Checklist
-              </h3>
-              {cardSelecionado.checklist && cardSelecionado.checklist.length > 0 ? (
-                <div className="space-y-2 mb-3">
-                  {cardSelecionado.checklist.map((item) => (
-                    <div key={item.id} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={item.concluido}
-                        onChange={() => toggleItemChecklist(item.id, item.concluido)}
-                        className="w-4 h-4"
-                      />
-                      <span className={item.concluido ? 'line-through text-gray-500' : 'text-gray-900'}>
-                        {item.texto}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-sm mb-3">Nenhum item no checklist</p>
-              )}
-              
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={novoItemChecklist}
-                  onChange={(e) => setNovoItemChecklist(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && adicionarItemChecklist()}
-                  placeholder="Adicionar item..."
-                  className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"
-                />
-                <button
-                  onClick={adicionarItemChecklist}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm"
-                >
-                  Adicionar
+      {/* Modal Mover */}
+      {modalMoverAberto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Mover Card</h2>
+            <div className="space-y-2">
+              {colunas.map((coluna) => (
+                <button key={coluna.id} onClick={() => setColunaSelecionadaMover(coluna.id)} className={`w-full text-left px-4 py-3 rounded-lg border-2 ${colunaSelecionadaMover === coluna.id ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  {coluna.titulo}
                 </button>
-              </div>
+              ))}
             </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setModalMoverAberto(false)} className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">Cancelar</button>
+              <button onClick={moverCard} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700" disabled={!colunaSelecionadaMover}>Mover</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-            {/* Comentários */}
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <MessageSquare className="w-4 h-4" />
-                Comentários
-              </h3>
-              {cardSelecionado.comentarios && cardSelecionado.comentarios.length > 0 ? (
-                <div className="space-y-3 mb-3">
-                  {cardSelecionado.comentarios.map((comentario) => (
-                    <div key={comentario.id} className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-sm text-gray-900">{comentario.autor}</span>
-                        <span className="text-xs text-gray-500">
-                          {new Date(comentario.data).toLocaleString('pt-BR')}
-                        </span>
-                      </div>
-                      <p className="text-gray-900 text-sm">{comentario.texto}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-sm mb-3">Nenhum comentário ainda</p>
-              )}
-              
-              <div className="flex gap-2">
-                <textarea
-                  value={novoComentario}
-                  onChange={(e) => setNovoComentario(e.target.value)}
-                  placeholder="Escreva um comentário..."
-                  className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"
-                  rows="2"
-                />
-                <button
-                  onClick={adicionarComentario}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm self-end"
-                >
-                  Enviar
+      {/* Modal Copiar */}
+      {modalCopiarAberto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Copiar Card</h2>
+            <p className="text-gray-600 mb-4">Selecione a coluna de destino (opcional)</p>
+            <div className="space-y-2">
+              {colunas.map((coluna) => (
+                <button key={coluna.id} onClick={() => setColunaSelecionadaMover(coluna.id)} className={`w-full text-left px-4 py-3 rounded-lg border-2 ${colunaSelecionadaMover === coluna.id ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  {coluna.titulo}
                 </button>
-              </div>
+              ))}
             </div>
-
-            {/* Ações */}
-            <div className="flex gap-3 pt-6 border-t">
-              <button
-                onClick={() => {
-                  setCardDetalheAberto(false);
-                  abrirModalCard(cardSelecionado.coluna_id, cardSelecionado);
-                }}
-                className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-              >
-                Editar Card
-              </button>
-              <button
-                onClick={() => deletarCard(cardSelecionado.id)}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-              >
-                Deletar
-              </button>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setModalCopiarAberto(false)} className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">Cancelar</button>
+              <button onClick={copiarCard} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">Copiar</button>
             </div>
           </div>
         </div>
