@@ -910,8 +910,10 @@ export default function KanbanBoard() {
   const abrirDetalheCard = async (card) => {
     setCardSelecionado(card);
     setCardDetalheAberto(true);
-    
-    // Carregar membros disponíveis
+    await carregarMembros();
+  };
+
+  const carregarMembros = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${BACKEND_URL}/api/users`, {
@@ -920,6 +922,34 @@ export default function KanbanBoard() {
       setMembrosDisponiveis(response.data || []);
     } catch (error) {
       console.error('Erro ao carregar membros:', error);
+    }
+  };
+
+  const cadastrarNovoMembro = async () => {
+    if (!novoMembroForm.username.trim()) {
+      toast.error('Username é obrigatório');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${BACKEND_URL}/api/auth/register`,
+        {
+          username: novoMembroForm.username.trim(),
+          nome: novoMembroForm.nome.trim() || novoMembroForm.username.trim(),
+          password: novoMembroForm.password || '123',
+          role: 'production'
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success('Membro cadastrado!');
+      setModalCadastroMembroAberto(false);
+      setNovoMembroForm({ username: '', nome: '', password: '123' });
+      await carregarMembros();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Erro ao cadastrar membro');
     }
   };
 
