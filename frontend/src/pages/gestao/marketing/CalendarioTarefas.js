@@ -311,7 +311,9 @@ export default function CalendarioTarefas() {
       data_hora: format(new Date(tarefaSelecionada.data_hora), "yyyy-MM-dd'T'HH:mm"),
       status: tarefaSelecionada.status,
       prioridade: tarefaSelecionada.prioridade,
-      tags: tarefaSelecionada.tags || []
+      tags: tarefaSelecionada.tags || [],
+      localizacao: tarefaSelecionada.localizacao || '',
+      participantes: tarefaSelecionada.participantes || []
     });
     setModoVisualizacao(false);
   };
