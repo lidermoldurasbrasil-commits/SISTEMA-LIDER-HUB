@@ -529,11 +529,51 @@ export default function KanbanBoard() {
                           )}
                         </Droppable>
 
-                        <div className="p-3 border-t">
-                          <button onClick={() => abrirModalCard(coluna.id)} className="w-full text-left text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded flex items-center gap-2">
-                            <Plus className="w-4 h-4" />
-                            Adicionar card
-                          </button>
+                        {/* Adicionar Card */}
+                        <div className="p-3 border-t bg-gray-50/50">
+                          {adicionandoCardColuna === coluna.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                autoFocus
+                                value={textoNovoCard}
+                                onChange={(e) => setTextoNovoCard(e.target.value)}
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    criarCardRapido(coluna.id);
+                                  }
+                                }}
+                                placeholder="Inserir um título para este cartão..."
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                                rows="3"
+                              />
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => criarCardRapido(coluna.id)}
+                                  className="bg-indigo-600 text-white px-4 py-1.5 rounded hover:bg-indigo-700 text-sm font-medium"
+                                >
+                                  Adicionar cartão
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setAdicionandoCardColuna(null);
+                                    setTextoNovoCard('');
+                                  }}
+                                  className="text-gray-600 hover:text-gray-900 p-1.5"
+                                >
+                                  <X className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setAdicionandoCardColuna(coluna.id)}
+                              className="w-full text-left text-sm text-gray-700 hover:bg-gray-200/70 px-2 py-1.5 rounded flex items-center gap-2 font-medium"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Adicionar um cartão
+                            </button>
+                          )}
                         </div>
                       </div>
                     )}
