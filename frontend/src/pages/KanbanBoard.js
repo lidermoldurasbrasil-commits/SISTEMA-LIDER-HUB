@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Plus, X, Edit2, Trash2, MoreVertical, Tag, Calendar, CheckSquare, MessageSquare, Clock, User, Paperclip, Copy, Archive, ArrowRight, Activity } from 'lucide-react';
+import { Plus, X, Edit2, Trash2, MoreVertical, Tag, Calendar, CheckSquare, MessageSquare, Clock, User, Paperclip, Copy, Archive, ArrowRight, Activity, HelpCircle } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
