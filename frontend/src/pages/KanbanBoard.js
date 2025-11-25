@@ -932,10 +932,17 @@ export default function KanbanBoard() {
     if (!novoItemChecklist.trim() || !cardSelecionado) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist`, { texto: novoItemChecklist.trim() }, { headers: { Authorization: `Bearer ${token}` } });
+      const payload = { 
+        texto: novoItemChecklist.trim(),
+        assignee: membroNovoItem || undefined
+      };
+      await axios.post(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist`, payload, { headers: { Authorization: `Bearer ${token}` } });
       setNovoItemChecklist('');
+      setMembroNovoItem('');
+      setMostrarSeletorMembroNovoItem(false);
       const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
       setCardSelecionado(response.data);
+      toast.success('Item adicionado!');
     } catch (error) {
       toast.error('Erro ao adicionar item');
     }
