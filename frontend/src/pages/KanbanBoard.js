@@ -674,7 +674,7 @@ export default function KanbanBoard() {
                 {colunas.map((coluna, index) => (
                   <Draggable key={coluna.id} draggableId={coluna.id} index={index}>
                     {(provided, snapshot) => (
-                      <div ref={provided.innerRef} {...provided.draggableProps} className={`flex-shrink-0 w-80 bg-white rounded-lg shadow-md flex flex-col ${snapshot.isDragging ? 'opacity-50' : ''}`} style={{ maxHeight: 'calc(100vh - 180px)', ...provided.draggableProps.style }}>
+                      <div ref={provided.innerRef} {...provided.draggableProps} className={`flex-shrink-0 w-80 rounded-lg shadow-md flex flex-col ${snapshot.isDragging ? 'opacity-50' : ''}`} style={{ maxHeight: 'calc(100vh - 180px)', backgroundColor: '#F8F9FA', ...provided.draggableProps.style }}>
                         <div {...provided.dragHandleProps} className="px-4 py-3 border-b cursor-move flex justify-between items-center" style={coluna.cor ? { borderTopColor: coluna.cor, borderTopWidth: '4px' } : {}}>
                           <h3 className="font-semibold text-gray-900">{coluna.titulo}</h3>
                           <div className="flex gap-1">
