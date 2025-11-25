@@ -2688,7 +2688,9 @@ export default function KanbanBoard() {
                       if (editandoLabel) {
                         // Salvar edição
                         const novasLabels = labelsEditando.map(l =>
-                          l.color === editandoLabel.originalColor ? editandoLabel : l
+                          l.color === editandoLabel.originalColor 
+                            ? { name: editandoLabel.name, color: editandoLabel.color }
+                            : l
                         );
                         setLabelsEditando(novasLabels);
                         salvarLabels(novasLabels);
