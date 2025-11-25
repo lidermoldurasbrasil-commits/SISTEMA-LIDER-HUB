@@ -683,6 +683,15 @@ export default function CalendarioTarefas() {
           culture="pt-BR"
         />
       </div>
+      ) : (
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl shadow-lg p-6 min-h-[600px]">
+          <AgendaDoDia 
+            tarefas={events} 
+            date={date}
+            onSelectTarefa={handleSelectEvent}
+          />
+        </div>
+      )}
 
       {/* Modal de Tarefa */}
       {modalAberto && (
