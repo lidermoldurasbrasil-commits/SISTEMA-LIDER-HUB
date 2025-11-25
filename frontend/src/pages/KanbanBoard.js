@@ -82,18 +82,90 @@ export default function KanbanBoard() {
   const [modalMembrosAberto, setModalMembrosAberto] = useState(false);
 
   const fundos = [
-    { id: 'gradient-1', nome: 'Índigo Roxo', classe: 'bg-gradient-to-br from-indigo-50 to-purple-50' },
-    { id: 'gradient-2', nome: 'Azul Claro', classe: 'bg-gradient-to-br from-blue-50 to-cyan-50' },
-    { id: 'gradient-3', nome: 'Rosa Suave', classe: 'bg-gradient-to-br from-pink-50 to-rose-50' },
-    { id: 'gradient-4', nome: 'Verde Menta', classe: 'bg-gradient-to-br from-emerald-50 to-teal-50' },
-    { id: 'gradient-5', nome: 'Laranja Pêssego', classe: 'bg-gradient-to-br from-orange-50 to-amber-50' },
-    { id: 'solid-blue', nome: 'Azul Sólido', classe: 'bg-blue-500' },
-    { id: 'solid-purple', nome: 'Roxo Sólido', classe: 'bg-purple-500' },
-    { id: 'solid-green', nome: 'Verde Sólido', classe: 'bg-green-500' },
-    { id: 'solid-red', nome: 'Vermelho Sólido', classe: 'bg-red-500' },
+    { id: 'gradient-1', nome: 'Índigo Roxo', classe: 'bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100' },
+    { id: 'gradient-2', nome: 'Azul Claro', classe: 'bg-gradient-to-br from-blue-100 via-cyan-50 to-teal-100' },
+    { id: 'gradient-3', nome: 'Rosa Suave', classe: 'bg-gradient-to-br from-pink-100 via-rose-50 to-orange-100' },
+    { id: 'gradient-4', nome: 'Verde Menta', classe: 'bg-gradient-to-br from-emerald-100 via-teal-50 to-cyan-100' },
+    { id: 'gradient-5', nome: 'Laranja Pêssego', classe: 'bg-gradient-to-br from-orange-100 via-amber-50 to-yellow-100' },
+    { id: 'gradient-6', nome: 'Oceano', classe: 'bg-gradient-to-br from-blue-200 via-indigo-100 to-purple-200' },
+    { id: 'gradient-7', nome: 'Pôr do Sol', classe: 'bg-gradient-to-br from-orange-200 via-pink-100 to-purple-200' },
+    { id: 'gradient-8', nome: 'Floresta', classe: 'bg-gradient-to-br from-green-200 via-emerald-100 to-teal-200' },
+    { id: 'solid-blue', nome: 'Azul Sólido', classe: 'bg-blue-600' },
+    { id: 'solid-purple', nome: 'Roxo Sólido', classe: 'bg-purple-600' },
+    { id: 'solid-green', nome: 'Verde Sólido', classe: 'bg-green-600' },
+    { id: 'solid-red', nome: 'Vermelho Sólido', classe: 'bg-red-600' },
     { id: 'image-1', nome: 'Padrão 1', classe: 'bg-[url("https://images.unsplash.com/photo-1557683316-973673baf926?w=1920&q=80")] bg-cover' },
     { id: 'image-2', nome: 'Padrão 2', classe: 'bg-[url("https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1920&q=80")] bg-cover' },
   ];
+
+  // Função para calcular nível de combustível baseado no prazo
+  const calcularCombustivel = (dataVencimento) => {
+    if (!dataVencimento) return { nivel: 100, cor: 'bg-gray-300', texto: 'Sem prazo' };
+    
+    const agora = new Date();
+    const vencimento = new Date(dataVencimento);
+    const diferencaMs = vencimento - agora;
+    const diferencaDias = diferencaMs / (1000 * 60 * 60 * 24);
+    
+    // Já venceu
+    if (diferencaDias < 0) {
+      return { 
+        nivel: 0, 
+        cor: 'bg-red-600', 
+        texto: 'Vencido!',
+        badge: 'bg-red-100 text-red-800 border-red-300'
+      };
+    }
+    
+    // Menos de 1 dia
+    if (diferencaDias < 1) {
+      const horas = Math.floor(diferencaMs / (1000 * 60 * 60));
+      return { 
+        nivel: 15, 
+        cor: 'bg-red-500', 
+        texto: `${horas}h restantes`,
+        badge: 'bg-red-100 text-red-800 border-red-300'
+      };
+    }
+    
+    // 1-2 dias
+    if (diferencaDias < 2) {
+      return { 
+        nivel: 30, 
+        cor: 'bg-orange-500', 
+        texto: '1 dia restante',
+        badge: 'bg-orange-100 text-orange-800 border-orange-300'
+      };
+    }
+    
+    // 2-3 dias
+    if (diferencaDias < 3) {
+      return { 
+        nivel: 50, 
+        cor: 'bg-yellow-500', 
+        texto: `${Math.floor(diferencaDias)} dias`,
+        badge: 'bg-yellow-100 text-yellow-800 border-yellow-300'
+      };
+    }
+    
+    // 3-7 dias
+    if (diferencaDias < 7) {
+      return { 
+        nivel: 70, 
+        cor: 'bg-blue-500', 
+        texto: `${Math.floor(diferencaDias)} dias`,
+        badge: 'bg-blue-100 text-blue-800 border-blue-300'
+      };
+    }
+    
+    // Mais de 7 dias
+    return { 
+      nivel: 100, 
+      cor: 'bg-green-500', 
+      texto: `${Math.floor(diferencaDias)} dias`,
+      badge: 'bg-green-100 text-green-800 border-green-300'
+    };
+  };
 
   useEffect(() => {
     carregarDados();
