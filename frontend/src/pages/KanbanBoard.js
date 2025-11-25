@@ -1192,6 +1192,79 @@ export default function KanbanBoard() {
         </div>
       )}
 
+      {/* Modal Etiquetas Editáveis */}
+      {modalLabelAberto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Etiquetas</h2>
+              <button onClick={() => setModalLabelAberto(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {LABEL_COLORS.map((color, index) => {
+                const labelAtiva = labelsEditando.find(l => l.color === color.value);
+                const isAtiva = !!labelAtiva;
+
+                return (
+                  <div key={color.value} className="flex items-center gap-3">
+                    <button
+                      onClick={() => adicionarLabelEditavel(color.value)}
+                      className={`w-12 h-8 rounded ${isAtiva ? 'ring-2 ring-offset-2 ring-gray-400' : ''}`}
+                      style={{ backgroundColor: color.hex }}
+                    />
+                    
+                    <div className="flex-1">
+                      {isAtiva ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={labelAtiva.name}
+                            onChange={(e) => {
+                              const idx = labelsEditando.findIndex(l => l.color === color.value);
+                              if (idx !== -1) atualizarNomeLabel(idx, e.target.value);
+                            }}
+                            onFocus={() => setEditandoLabelIndex(index)}
+                            onBlur={() => setEditandoLabelIndex(null)}
+                            placeholder={color.label}
+                            className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm"
+                          />
+                          <button
+                            onClick={() => adicionarLabelEditavel(color.value)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-700">{color.label}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-6 pt-6 border-t flex gap-3">
+              <button
+                onClick={() => setModalLabelAberto(false)}
+                className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarLabels}
+                className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Plano de Fundo */}
       {modalFundoAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
