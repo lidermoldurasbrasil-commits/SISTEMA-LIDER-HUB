@@ -122,6 +122,10 @@ export default function KanbanBoard() {
   const [atribuindoMembroQuestao, setAtribuindoMembroQuestao] = useState(null); // ID da questão
   const [atribuindoMembroLabel, setAtribuindoMembroLabel] = useState(null); // Cor da label
   const [membrosDisponiveis, setMembrosDisponiveis] = useState([]);
+  
+  // Modal de cadastro rápido de membro
+  const [modalCadastroMembroAberto, setModalCadastroMembroAberto] = useState(false);
+  const [novoMembroForm, setNovoMembroForm] = useState({ username: '', nome: '', password: '123' });
   const [modalCopiarAberto, setModalCopiarAberto] = useState(false);
   const [colunaSelecionadaMover, setColunaSelecionadaMover] = useState(null);
   const [modalLabelAberto, setModalLabelAberto] = useState(false);
