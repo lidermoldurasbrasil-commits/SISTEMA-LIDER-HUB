@@ -1116,14 +1116,24 @@ export default function KanbanBoard() {
                                             </div>
                                           )}
                                           
-                                          {/* Ícones de Informação */}
-                                          <div className="flex items-center gap-3 text-xs text-gray-600">
-                                            {card.assignees && card.assignees.length > 0 && (
-                                              <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md">
-                                                <User className="w-3.5 h-3.5" />
-                                                <span className="font-medium">{card.assignees.length}</span>
+                                          {/* Membros com Avatares */}
+                                          {card.assignees && card.assignees.length > 0 && (
+                                            <div className="mb-2 flex items-center gap-1">
+                                              <div className="flex -space-x-2">
+                                                {card.assignees.slice(0, 3).map((assignee, idx) => (
+                                                  <MemberAvatar key={idx} username={assignee.username} size="sm" />
+                                                ))}
+                                                {card.assignees.length > 3 && (
+                                                  <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700 ring-2 ring-white shadow-md">
+                                                    +{card.assignees.length - 3}
+                                                  </div>
+                                                )}
                                               </div>
-                                            )}
+                                            </div>
+                                          )}
+                                          
+                                          {/* Ícones de Informação */}
+                                          <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
                                             {card.checklist && card.checklist.length > 0 && (
                                               <div className={`flex items-center gap-1 px-2 py-1 rounded-md ${
                                                 card.checklist.filter(i => i.concluido).length === card.checklist.length 
