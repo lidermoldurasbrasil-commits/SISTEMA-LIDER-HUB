@@ -102,6 +102,8 @@ export default function KanbanBoard() {
 
   // Estados para funcionalidades extras
   const [novoItemChecklist, setNovoItemChecklist] = useState('');
+  const [membroNovoItem, setMembroNovoItem] = useState(''); // Membro para novo item
+  const [mostrarSeletorMembroNovoItem, setMostrarSeletorMembroNovoItem] = useState(false);
   const [novoComentario, setNovoComentario] = useState('');
   const [novoAnexo, setNovoAnexo] = useState({ nome: '', url: '', tipo: 'link' });
   const [tipoAnexo, setTipoAnexo] = useState('link'); // 'link' ou 'upload'
