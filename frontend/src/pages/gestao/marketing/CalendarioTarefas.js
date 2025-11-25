@@ -756,6 +756,16 @@ export default function CalendarioTarefas() {
                     </div>
                   )}
 
+                  {tarefaSelecionada.localizacao && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-blue-800">
+                        <MapPin className="w-4 h-4" />
+                        <span className="font-medium">Localização:</span>
+                      </div>
+                      <p className="text-gray-900 mt-1 ml-6">{tarefaSelecionada.localizacao}</p>
+                    </div>
+                  )}
+
                   {tarefaSelecionada.tags && tarefaSelecionada.tags.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 text-gray-700 mb-2">
