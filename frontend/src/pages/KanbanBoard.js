@@ -840,18 +840,35 @@ export default function KanbanBoard() {
   return (
     <div className={`h-screen flex flex-col ${fundoAtual.classe}`}>
       {/* Header */}
-      <div className="bg-white/90 backdrop-blur-sm shadow-sm border-b px-6 py-4">
+      <div className="bg-white/95 backdrop-blur-md shadow-lg border-b-2 border-gray-200 px-6 py-5">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Planejamento - Kanban Board</h1>
-            <p className="text-gray-600 text-sm mt-1">Organize suas tarefas com drag and drop</p>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              Planejamento - Kanban Board
+            </h1>
+            <p className="text-gray-600 text-sm mt-1 font-medium">Organize suas tarefas com drag and drop • Visualize prazos com barras de combustível</p>
           </div>
           <div className="flex gap-3">
-            <button onClick={() => setModalFundoAberto(true)} className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-              <span className="w-5 h-5 rounded border-2 border-gray-400" style={{ background: fundoAtual.id.startsWith('gradient') ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : fundoAtual.id.startsWith('solid') ? fundoAtual.classe.replace('bg-', '') : 'url(...)' }}></span>
+            <button 
+              onClick={() => setModalFundoAberto(true)} 
+              className="bg-white text-gray-700 border-2 border-gray-300 px-4 py-2.5 rounded-xl hover:bg-gray-50 hover:shadow-md flex items-center gap-2 font-semibold transition-all"
+            >
+              <span 
+                className="w-6 h-6 rounded-lg border-2 border-gray-400 shadow-sm" 
+                style={{ 
+                  background: fundoAtual.id.startsWith('gradient') 
+                    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                    : fundoAtual.id.startsWith('solid') 
+                    ? fundoAtual.classe.replace('bg-', '') 
+                    : 'url(...)' 
+                }}
+              ></span>
               Plano de Fundo
             </button>
-            <button onClick={() => abrirModalColuna()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
+            <button 
+              onClick={() => abrirModalColuna()} 
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-2.5 rounded-xl hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl flex items-center gap-2 font-semibold transition-all transform hover:scale-105"
+            >
               <Plus className="w-5 h-5" />
               Nova Coluna
             </button>
