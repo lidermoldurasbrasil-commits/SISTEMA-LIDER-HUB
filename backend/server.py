@@ -8232,6 +8232,106 @@ async def atualizar_labels(card_id: str, labels_data: dict, current_user: dict =
     
     return {"message": "Labels atualizadas", "labels": labels}
 
+
+@api_router.put("/kanban/cards/{card_id}/labels/{label_color}/assignee")
+async def atribuir_membro_label(card_id: str, label_color: str, assignee_data: dict, current_user: dict = Depends(get_current_user)):
+    """Atribui um membro (responsável) a uma etiqueta específica"""
+    assignee = assignee_data.get('assignee', '').strip()
+    
+    if not assignee:
+        raise HTTPException(status_code=400, detail="Nome do membro é obrigatório")
+    
+    # Buscar card
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Buscar a label específica
+    labels = card.get('labels', [])
+    label_encontrada = False
+    for label in labels:
+        if label.get('color') == label_color:
+            label['assignee'] = assignee
+            label_encontrada = True
+            break
+    
+    if not label_encontrada:
+        raise HTTPException(status_code=404, detail="Etiqueta não encontrada")
+    
+    # Registrar atividade
+    label_nome = next((l.get('name', label_color) for l in labels if l.get('color') == label_color), label_color)
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "atribuiu_membro_label",
+        "descricao": f"Atribuiu {assignee} como responsável da etiqueta '{label_nome}'",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                "labels": labels,
+                "updated_at": datetime.now(timezone.utc)
+            },
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Responsável atribuído à etiqueta"}
+
+@api_router.delete("/kanban/cards/{card_id}/labels/{label_color}/assignee")
+async def remover_membro_label(card_id: str, label_color: str, current_user: dict = Depends(get_current_user)):
+    """Remove o responsável de uma etiqueta específica"""
+    # Buscar card
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Buscar a label específica e remover assignee
+    labels = card.get('labels', [])
+    label_encontrada = False
+    for label in labels:
+        if label.get('color') == label_color:
+            if 'assignee' in label:
+                del label['assignee']
+            label_encontrada = True
+            break
+    
+    if not label_encontrada:
+        raise HTTPException(status_code=404, detail="Etiqueta não encontrada")
+    
+    # Registrar atividade
+    label_nome = next((l.get('name', label_color) for l in labels if l.get('color') == label_color), label_color)
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "removeu_membro_label",
+        "descricao": f"Removeu o responsável da etiqueta '{label_nome}'",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                "labels": labels,
+                "updated_at": datetime.now(timezone.utc)
+            },
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Responsável removido da etiqueta"}
+
+
 # ============ ROTAS PARA QUESTÕES A RESOLVER ============
 
 @api_router.post("/kanban/cards/{card_id}/questoes")
