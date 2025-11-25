@@ -717,6 +717,64 @@ export default function KanbanBoard() {
     }
   };
 
+  // Funções para "A Resolver"
+  const adicionarQuestao = async () => {
+    if (!novaQuestao.trim() || !cardSelecionado) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/questoes`,
+        { pergunta: novaQuestao.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNovaQuestao('');
+      carregarDados();
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      console.error('Erro ao adicionar questão:', error);
+    }
+  };
+
+  const adicionarResposta = async (questaoId) => {
+    if (!novaResposta.trim() || !cardSelecionado) return;
+    try {
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user'));
+      await axios.post(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/questoes/${questaoId}/respostas`,
+        { 
+          texto: novaResposta.trim(),
+          autor: user?.username || 'Anônimo'
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNovaResposta('');
+      setQuestaoExpandida(null);
+      carregarDados();
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      console.error('Erro ao adicionar resposta:', error);
+    }
+  };
+
+  const marcarQuestaoResolvida = async (questaoId, resolvida) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/questoes/${questaoId}`,
+        { resolvida: !resolvida },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      carregarDados();
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      console.error('Erro ao marcar questão:', error);
+    }
+  };
+
   const toggleItemChecklist = async (itemId, concluido) => {
     try {
       const token = localStorage.getItem('token');
