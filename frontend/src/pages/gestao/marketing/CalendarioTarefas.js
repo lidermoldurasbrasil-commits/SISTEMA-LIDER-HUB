@@ -34,6 +34,130 @@ const PRIORIDADE_COLORS = {
   'Baixa': '#3B82F6'
 };
 
+// Componente de Agenda Minimalista do Dia
+const AgendaDoDia = ({ tarefas, date, onSelectTarefa }) => {
+  const tarefasDoDia = tarefas.filter(tarefa => {
+    const tarefaDate = new Date(tarefa.start);
+    return tarefaDate.toDateString() === date.toDateString();
+  }).sort((a, b) => new Date(a.start) - new Date(b.start));
+
+  const getStatusIcon = (status) => {
+    switch(status) {
+      case 'Concluído': return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'Em Andamento': return <Clock className="w-5 h-5 text-orange-500" />;
+      case 'Atrasado': return <AlertCircle className="w-5 h-5 text-red-500" />;
+      default: return <CheckSquare className="w-5 h-5 text-gray-400" />;
+    }
+  };
+
+  const getPrioridadeBadge = (prioridade) => {
+    const styles = {
+      'Alta': 'bg-red-100 text-red-800 border-red-300',
+      'Média': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      'Baixa': 'bg-blue-100 text-blue-800 border-blue-300'
+    };
+    return styles[prioridade] || styles['Média'];
+  };
+
+  if (tarefasDoDia.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+        <CalendarIcon className="w-16 h-16 mb-4 opacity-50" />
+        <p className="text-lg font-medium">Nenhum compromisso para hoje</p>
+        <p className="text-sm">Aproveite seu dia livre!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {tarefasDoDia.map((tarefa, index) => (
+        <div
+          key={tarefa.id}
+          onClick={() => onSelectTarefa(tarefa)}
+          className="group bg-white rounded-xl border-2 border-gray-200 hover:border-indigo-400 p-4 cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+        >
+          <div className="flex items-start gap-4">
+            {/* Horário */}
+            <div className="flex-shrink-0 text-center">
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-500 text-white rounded-lg px-3 py-2 shadow-md">
+                <div className="text-xs font-semibold uppercase opacity-90">
+                  {format(new Date(tarefa.start), 'HH:mm', { locale: ptBR })}
+                </div>
+              </div>
+            </div>
+
+            {/* Linha de Tempo Vertical */}
+            <div className="flex-shrink-0 flex flex-col items-center">
+              <div className="w-0.5 h-2 bg-gray-300"></div>
+              {getStatusIcon(tarefa.status)}
+              {index < tarefasDoDia.length - 1 && (
+                <div className="w-0.5 flex-1 bg-gray-300 min-h-[20px]"></div>
+              )}
+            </div>
+
+            {/* Conteúdo */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h3 className="font-semibold text-gray-900 text-base group-hover:text-indigo-600 transition-colors">
+                  {tarefa.titulo}
+                </h3>
+                <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full border font-medium ${getPrioridadeBadge(tarefa.prioridade)}`}>
+                  {tarefa.prioridade}
+                </span>
+              </div>
+
+              {tarefa.descricao && (
+                <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                  {tarefa.descricao}
+                </p>
+              )}
+
+              {/* Tags */}
+              {tarefa.tags && tarefa.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {tarefa.tags.map((tag, idx) => (
+                    <span
+                      key={idx}
+                      className="text-xs px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 border border-gray-300"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Indicadores */}
+              <div className="flex items-center gap-3 text-xs text-gray-500">
+                {tarefa.checklist && tarefa.checklist.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    <span>
+                      {tarefa.checklist.filter(item => item.concluido).length}/{tarefa.checklist.length}
+                    </span>
+                  </div>
+                )}
+                {tarefa.comentarios && tarefa.comentarios.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>{tarefa.comentarios.length}</span>
+                  </div>
+                )}
+                {tarefa.anexos && tarefa.anexos.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    <span>{tarefa.anexos.length}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default function CalendarioTarefas() {
   const [membros, setMembros] = useState([]);
   const [membroSelecionado, setMembroSelecionado] = useState(null);
@@ -45,6 +169,7 @@ export default function CalendarioTarefas() {
   const [tarefaSelecionada, setTarefaSelecionada] = useState(null);
   const [modoVisualizacao, setModoVisualizacao] = useState(false);
   const [user, setUser] = useState(null);
+  const [viewMode, setViewMode] = useState('calendar'); // 'calendar' ou 'agenda'
 
   // Form data
   const [formData, setFormData] = useState({
