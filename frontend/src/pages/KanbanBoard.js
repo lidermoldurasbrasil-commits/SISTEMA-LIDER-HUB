@@ -1203,7 +1203,7 @@ export default function KanbanBoard() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              Planejamento - Kanban Board
+              Líder Flow
             </h1>
             <p className="text-gray-600 text-sm mt-1 font-medium">Organize suas tarefas com drag and drop • Visualize prazos com barras de combustível</p>
           </div>
