@@ -2730,6 +2730,11 @@ export default function KanbanBoard() {
                             ? { name: editandoLabel.name, color: editandoLabel.color }
                             : l
                         );
+                        
+                        // Salvar nome personalizado globalmente
+                        const novosLabelsGlobais = { ...labelsGlobais, [editandoLabel.color]: editandoLabel.name };
+                        setLabelsGlobais(novosLabelsGlobais);
+                        
                         setLabelsEditando(novasLabels);
                         salvarLabels(novasLabels);
                         setEditandoLabel(null);
