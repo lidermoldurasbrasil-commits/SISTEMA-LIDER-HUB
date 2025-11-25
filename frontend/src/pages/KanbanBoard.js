@@ -111,6 +111,10 @@ export default function KanbanBoard() {
   // Estados para labels editáveis
   const [labelsEditando, setLabelsEditando] = useState([]);
   const [editandoLabelIndex, setEditandoLabelIndex] = useState(null);
+  const [buscaLabel, setBuscaLabel] = useState('');
+  const [criandoLabel, setCriandoLabel] = useState(false);
+  const [novaLabel, setNovaLabel] = useState({ name: '', color: 'red' });
+  const [editandoLabel, setEditandoLabel] = useState(null);
   
   // Estados para descrição editável
   const [editandoDescricao, setEditandoDescricao] = useState(false);
