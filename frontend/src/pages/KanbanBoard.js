@@ -1185,9 +1185,11 @@ export default function KanbanBoard() {
                                           {card.assignees && card.assignees.length > 0 && (
                                             <div className="mb-2 flex items-center gap-1">
                                               <div className="flex -space-x-2">
-                                                {card.assignees.slice(0, 3).map((assignee, idx) => (
-                                                  <MemberAvatar key={idx} username={assignee.username} size="sm" />
-                                                ))}
+                                                {card.assignees.slice(0, 3).map((assignee, idx) => {
+                                                  // assignee pode ser string ou objeto
+                                                  const username = typeof assignee === 'string' ? assignee : (assignee?.username || assignee);
+                                                  return <MemberAvatar key={idx} username={username} size="sm" />;
+                                                })}
                                                 {card.assignees.length > 3 && (
                                                   <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700 ring-2 ring-white shadow-md">
                                                     +{card.assignees.length - 3}
