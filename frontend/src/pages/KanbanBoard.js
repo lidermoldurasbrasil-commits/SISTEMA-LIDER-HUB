@@ -1682,7 +1682,10 @@ export default function KanbanBoard() {
                                         <div className="flex items-center gap-1">
                                           <MemberAvatar username={item.assignee} size="xs" />
                                           <button
-                                            onClick={() => removerMembroChecklist(item.id)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              removerMembroChecklist(item.id);
+                                            }}
                                             className="p-0.5 hover:bg-gray-200 rounded"
                                             title="Remover membro"
                                           >
@@ -1691,7 +1694,10 @@ export default function KanbanBoard() {
                                         </div>
                                       ) : (
                                         <button
-                                          onClick={() => setAtribuindoMembroItem(atribuindoMembroItem === item.id ? null : item.id)}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAtribuindoMembroItem(atribuindoMembroItem === item.id ? null : item.id);
+                                          }}
                                           className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-gray-900"
                                           title="Atribuir membro"
                                         >
