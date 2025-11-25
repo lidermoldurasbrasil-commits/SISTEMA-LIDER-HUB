@@ -1327,18 +1327,29 @@ export default function KanbanBoard() {
                                         )}
                                         
                                         <div className="p-3">
-                                          {/* Labels */}
+                                          {/* Labels com Membros */}
                                           {card.labels && card.labels.length > 0 && (
                                             <div className="flex gap-1 mb-2 flex-wrap">
                                               {card.labels.map((label, i) => (
                                                 label.name ? (
-                                                  <span 
-                                                    key={i} 
-                                                    className="px-2 py-0.5 rounded-md text-xs font-semibold text-white shadow-sm" 
-                                                    style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }}
+                                                  <div 
+                                                    key={i}
+                                                    className="relative group"
                                                   >
-                                                    {label.name}
-                                                  </span>
+                                                    <div 
+                                                      className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold text-white shadow-sm cursor-pointer hover:opacity-90 transition-opacity" 
+                                                      style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Abre dropdown para atribuir membro
+                                                      }}
+                                                    >
+                                                      <span>{label.name}</span>
+                                                      {label.assignee && (
+                                                        <MemberAvatar username={label.assignee} size="xs" />
+                                                      )}
+                                                    </div>
+                                                  </div>
                                                 ) : (
                                                   <div key={i} className="h-2 w-10 rounded-full shadow-sm" style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }} />
                                                 )
