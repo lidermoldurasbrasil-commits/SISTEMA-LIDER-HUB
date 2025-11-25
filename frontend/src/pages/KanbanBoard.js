@@ -48,9 +48,29 @@ export default function KanbanBoard() {
   const [modalCopiarAberto, setModalCopiarAberto] = useState(false);
   const [colunaSelecionadaMover, setColunaSelecionadaMover] = useState(null);
   const [modalLabelAberto, setModalLabelAberto] = useState(false);
+  const [adicionandoCardColuna, setAdicionandoCardColuna] = useState(null);
+  const [textoNovoCard, setTextoNovoCard] = useState('');
+  const [modalFundoAberto, setModalFundoAberto] = useState(false);
+  const [fundoSelecionado, setFundoSelecionado] = useState('gradient-1');
+
+  const fundos = [
+    { id: 'gradient-1', nome: 'Índigo Roxo', classe: 'bg-gradient-to-br from-indigo-50 to-purple-50' },
+    { id: 'gradient-2', nome: 'Azul Claro', classe: 'bg-gradient-to-br from-blue-50 to-cyan-50' },
+    { id: 'gradient-3', nome: 'Rosa Suave', classe: 'bg-gradient-to-br from-pink-50 to-rose-50' },
+    { id: 'gradient-4', nome: 'Verde Menta', classe: 'bg-gradient-to-br from-emerald-50 to-teal-50' },
+    { id: 'gradient-5', nome: 'Laranja Pêssego', classe: 'bg-gradient-to-br from-orange-50 to-amber-50' },
+    { id: 'solid-blue', nome: 'Azul Sólido', classe: 'bg-blue-500' },
+    { id: 'solid-purple', nome: 'Roxo Sólido', classe: 'bg-purple-500' },
+    { id: 'solid-green', nome: 'Verde Sólido', classe: 'bg-green-500' },
+    { id: 'solid-red', nome: 'Vermelho Sólido', classe: 'bg-red-500' },
+    { id: 'image-1', nome: 'Padrão 1', classe: 'bg-[url("https://images.unsplash.com/photo-1557683316-973673baf926?w=1920&q=80")] bg-cover' },
+    { id: 'image-2', nome: 'Padrão 2', classe: 'bg-[url("https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1920&q=80")] bg-cover' },
+  ];
 
   useEffect(() => {
     carregarDados();
+    const fundoSalvo = localStorage.getItem('kanban-fundo');
+    if (fundoSalvo) setFundoSelecionado(fundoSalvo);
   }, []);
 
   const carregarDados = async () => {
