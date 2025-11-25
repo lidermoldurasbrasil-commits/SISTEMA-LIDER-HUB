@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, CheckCircle, Clock, AlertCircle, List, CheckSquare, MessageSquare, Paperclip } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, CheckCircle, Clock, AlertCircle, List, CheckSquare, MessageSquare, Paperclip, MapPin, User } from 'lucide-react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, addDays, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
