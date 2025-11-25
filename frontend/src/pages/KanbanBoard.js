@@ -449,6 +449,77 @@ export default function KanbanBoard() {
     }
   };
 
+  // ========== DATA DE VENCIMENTO ==========
+  const abrirModalData = () => {
+    if (cardSelecionado?.data_vencimento) {
+      const dataAtual = new Date(cardSelecionado.data_vencimento);
+      const dataISO = dataAtual.toISOString().split('T')[0];
+      const hora = dataAtual.toTimeString().slice(0, 5);
+      setDataVencimento(dataISO);
+      setHoraVencimento(hora);
+    } else {
+      setDataVencimento('');
+      setHoraVencimento('12:00');
+    }
+    setModalDataAberto(true);
+  };
+
+  const salvarData = async () => {
+    if (!cardSelecionado) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      let dataCompleta = null;
+      
+      if (dataVencimento) {
+        dataCompleta = `${dataVencimento}T${horaVencimento}:00`;
+      }
+      
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`,
+        { data_vencimento: dataCompleta },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Data atualizada!');
+      setModalDataAberto(false);
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao atualizar data');
+    }
+  };
+
+  const removerData = async () => {
+    if (!cardSelecionado) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`,
+        { data_vencimento: null },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Data removida!');
+      setModalDataAberto(false);
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao remover data');
+    }
+  };
+
   const salvarCard = async () => {
     if (!formCard.titulo.trim()) {
       toast.error('Título é obrigatório');
