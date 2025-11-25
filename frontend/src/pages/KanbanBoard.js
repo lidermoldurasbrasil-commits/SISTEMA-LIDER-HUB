@@ -516,6 +516,51 @@ export default function KanbanBoard() {
     return Math.round((concluidas / item.subtarefas.length) * 100);
   };
 
+  // ========== SUB-SUBTAREFAS (ANINHADAS) ==========
+  const adicionarSubSubtarefa = async (itemId, subtarefaId) => {
+    if (!textoSubSubtarefa.trim() || !cardSelecionado) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist/${itemId}/subtarefa/${subtarefaId}/subsubtarefa`,
+        { texto: textoSubSubtarefa.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setTextoSubSubtarefa('');
+      setAdicionandoSubSubtarefa(null);
+      toast.success('Sub-sub-tarefa adicionada!');
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao adicionar sub-sub-tarefa');
+    }
+  };
+
+  const toggleSubSubtarefa = async (itemId, subtarefaId, subSubtarefaId, concluido) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist/${itemId}/subtarefa/${subtarefaId}/subsubtarefa/${subSubtarefaId}`,
+        { concluido: !concluido },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      console.error('Erro ao atualizar sub-sub-tarefa');
+    }
+  };
+
   // ========== CAPA ==========
   const abrirModalCapa = () => {
     setCapaUrl(cardSelecionado?.capa_url || '');
