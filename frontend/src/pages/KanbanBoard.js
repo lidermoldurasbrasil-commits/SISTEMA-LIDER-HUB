@@ -1707,14 +1707,20 @@ export default function KanbanBoard() {
                                       
                                       {/* Dropdown de Membros */}
                                       {atribuindoMembroItem === item.id && (
-                                        <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border-2 border-gray-200 p-2 z-50 w-48">
+                                        <div 
+                                          className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border-2 border-gray-200 p-2 z-50 w-48"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
                                           <div className="text-xs font-semibold text-gray-600 mb-2 px-2">Atribuir a:</div>
                                           <div className="max-h-48 overflow-y-auto">
                                             {membrosDisponiveis.length > 0 ? (
                                               membrosDisponiveis.map((membro) => (
                                                 <button
                                                   key={membro.id}
-                                                  onClick={() => atribuirMembroChecklist(item.id, membro.username)}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    atribuirMembroChecklist(item.id, membro.username);
+                                                  }}
                                                   className="w-full text-left px-2 py-1.5 hover:bg-indigo-50 rounded flex items-center gap-2"
                                                 >
                                                   <MemberAvatar username={membro.username} size="xs" />
