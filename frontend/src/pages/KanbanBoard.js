@@ -1462,7 +1462,7 @@ export default function KanbanBoard() {
                                                         <div className="text-xs font-semibold text-gray-600 mb-2 px-2">
                                                           Responsável por: {label.name}
                                                         </div>
-                                                        <div className="max-h-48 overflow-y-auto">
+                                                        <div className="max-h-48 overflow-y-auto mb-2">
                                                           {membrosDisponiveis.length > 0 ? (
                                                             membrosDisponiveis.map((membro) => (
                                                               <button
@@ -1486,6 +1486,16 @@ export default function KanbanBoard() {
                                                             <p className="text-xs text-gray-500 px-2 py-2">Nenhum membro disponível</p>
                                                           )}
                                                         </div>
+                                                        <button
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setModalCadastroMembroAberto(true);
+                                                          }}
+                                                          className="w-full px-2 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-2 font-medium text-sm border-2 border-dashed border-indigo-300"
+                                                        >
+                                                          <Plus className="w-4 h-4" />
+                                                          Novo Membro
+                                                        </button>
                                                       </div>
                                                     )}
                                                   </div>
