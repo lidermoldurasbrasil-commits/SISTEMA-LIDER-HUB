@@ -1887,23 +1887,81 @@ export default function KanbanBoard() {
                                 className="w-5 h-5 mt-0.5" 
                               />
                               <div className="flex-1">
-                                <div className="flex items-start justify-between">
-                                  <p className={`font-medium ${questao.resolvida ? 'line-through text-gray-600' : 'text-gray-900'}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className={`font-medium flex-1 ${questao.resolvida ? 'line-through text-gray-600' : 'text-gray-900'}`}>
                                     {questao.pergunta}
                                   </p>
-                                  <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
-                                    questao.resolvida 
-                                      ? 'bg-green-200 text-green-800' 
-                                      : 'bg-orange-200 text-orange-800'
-                                  }`}>
-                                    {questao.resolvida ? 'Resolvido' : 'Pendente'}
-                                  </span>
+                                  
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {/* Membro Atribuído */}
+                                    <div className="relative">
+                                      {questao.assignee ? (
+                                        <div className="flex items-center gap-1">
+                                          <MemberAvatar username={questao.assignee} size="xs" />
+                                          <button
+                                            onClick={() => removerMembroQuestao(questao.id)}
+                                            className="p-0.5 hover:bg-orange-200 rounded"
+                                            title="Remover responsável"
+                                          >
+                                            <X className="w-3 h-3 text-gray-600" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => setAtribuindoMembroQuestao(atribuindoMembroQuestao === questao.id ? null : questao.id)}
+                                          className="p-1 hover:bg-orange-200 rounded text-gray-600 hover:text-gray-900"
+                                          title="Atribuir responsável"
+                                        >
+                                          <User className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                      
+                                      {/* Dropdown de Membros */}
+                                      {atribuindoMembroQuestao === questao.id && (
+                                        <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border-2 border-gray-200 p-2 z-50 w-48">
+                                          <div className="text-xs font-semibold text-gray-600 mb-2 px-2">Atribuir a:</div>
+                                          <div className="max-h-48 overflow-y-auto">
+                                            {membrosDisponiveis.length > 0 ? (
+                                              membrosDisponiveis.map((membro) => (
+                                                <button
+                                                  key={membro.id}
+                                                  onClick={() => atribuirMembroQuestao(questao.id, membro.username)}
+                                                  className="w-full text-left px-2 py-1.5 hover:bg-orange-50 rounded flex items-center gap-2"
+                                                >
+                                                  <MemberAvatar username={membro.username} size="xs" />
+                                                  <span className="text-sm text-gray-900">{membro.username}</span>
+                                                </button>
+                                              ))
+                                            ) : (
+                                              <p className="text-xs text-gray-500 px-2 py-1">Nenhum membro disponível</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                                      questao.resolvida 
+                                        ? 'bg-green-200 text-green-800' 
+                                        : 'bg-orange-200 text-orange-800'
+                                    }`}>
+                                      {questao.resolvida ? 'Resolvido' : 'Pendente'}
+                                    </span>
+                                  </div>
                                 </div>
-                                {questao.criado_em && (
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Criado em {new Date(questao.criado_em).toLocaleDateString('pt-BR')}
-                                  </p>
-                                )}
+                                
+                                <div className="flex items-center gap-2 mt-1">
+                                  {questao.criado_em && (
+                                    <p className="text-xs text-gray-500">
+                                      Criado em {new Date(questao.criado_em).toLocaleDateString('pt-BR')}
+                                    </p>
+                                  )}
+                                  {questao.assignee && (
+                                    <p className="text-xs text-gray-600">
+                                      • Responsável: <span className="font-medium">{questao.assignee}</span>
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
