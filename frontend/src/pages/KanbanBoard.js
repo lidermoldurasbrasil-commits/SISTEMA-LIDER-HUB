@@ -242,6 +242,135 @@ export default function KanbanBoard() {
     setModalFundoAberto(false);
   };
 
+  // ========== LABELS EDITÁVEIS ==========
+  const abrirModalLabels = () => {
+    if (cardSelecionado) {
+      setLabelsEditando(cardSelecionado.labels || []);
+      setModalLabelAberto(true);
+    }
+  };
+
+  const adicionarLabelEditavel = (color) => {
+    const labelExiste = labelsEditando.find(l => l.color === color);
+    if (labelExiste) {
+      setLabelsEditando(labelsEditando.filter(l => l.color !== color));
+    } else {
+      setLabelsEditando([...labelsEditando, { color, name: LABEL_COLORS.find(c => c.value === color)?.label || '' }]);
+    }
+  };
+
+  const atualizarNomeLabel = (index, nome) => {
+    const novasLabels = [...labelsEditando];
+    novasLabels[index].name = nome;
+    setLabelsEditando(novasLabels);
+  };
+
+  const salvarLabels = async () => {
+    if (!cardSelecionado) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/labels`,
+        { labels: labelsEditando },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Etiquetas atualizadas!');
+      setModalLabelAberto(false);
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao atualizar etiquetas');
+    }
+  };
+
+  // ========== DESCRIÇÃO EDITÁVEL ==========
+  const iniciarEdicaoDescricao = () => {
+    setDescricaoTemp(cardSelecionado?.descricao || '');
+    setEditandoDescricao(true);
+  };
+
+  const salvarDescricao = async () => {
+    if (!cardSelecionado) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/descricao`,
+        { descricao: descricaoTemp },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Descrição atualizada!');
+      setEditandoDescricao(false);
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao atualizar descrição');
+    }
+  };
+
+  // ========== SUB-TAREFAS ==========
+  const adicionarSubtarefa = async (itemId) => {
+    if (!textoSubtarefa.trim() || !cardSelecionado) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist/${itemId}/subtarefa`,
+        { texto: textoSubtarefa.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setTextoSubtarefa('');
+      setAdicionandoSubtarefa(null);
+      toast.success('Sub-tarefa adicionada!');
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao adicionar sub-tarefa');
+    }
+  };
+
+  const toggleSubtarefa = async (itemId, subtarefaId, concluido) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist/${itemId}/subtarefa/${subtarefaId}`,
+        { concluido: !concluido },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      console.error('Erro ao atualizar sub-tarefa');
+    }
+  };
+
+  const calcularProgressoItem = (item) => {
+    if (!item.subtarefas || item.subtarefas.length === 0) return 0;
+    const concluidas = item.subtarefas.filter(s => s.concluido).length;
+    return Math.round((concluidas / item.subtarefas.length) * 100);
+  };
+
   const salvarCard = async () => {
     if (!formCard.titulo.trim()) {
       toast.error('Título é obrigatório');
