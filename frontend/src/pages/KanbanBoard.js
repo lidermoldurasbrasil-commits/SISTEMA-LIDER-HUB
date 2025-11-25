@@ -1672,6 +1672,13 @@ export default function KanbanBoard() {
                                           )}
                                         </div>
                                       </div>
+                                      <button
+                                        onClick={() => deletarResposta(questao.id, resposta.id)}
+                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded transition-colors"
+                                        title="Deletar resposta"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
                                     </div>
                                   </div>
                                 ))}
