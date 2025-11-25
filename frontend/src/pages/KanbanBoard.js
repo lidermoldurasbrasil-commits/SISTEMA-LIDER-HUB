@@ -1200,6 +1200,10 @@ export default function KanbanBoard() {
                 <Tag className="w-4 h-4" />
                 Etiquetas
               </button>
+              <button onClick={abrirModalCapa} className="w-full bg-white hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Capa
+              </button>
               <div className="border-t my-2"></div>
               <button onClick={arquivarCard} className="w-full bg-white hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
                 <Archive className="w-4 h-4" />
