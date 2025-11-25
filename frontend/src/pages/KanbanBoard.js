@@ -621,16 +621,57 @@ export default function KanbanBoard() {
   };
 
   const adicionarAnexo = async () => {
-    if (!novoAnexo.nome.trim() || !novoAnexo.url.trim() || !cardSelecionado) return;
+    if (!cardSelecionado) return;
+    
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/anexo`, novoAnexo, { headers: { Authorization: `Bearer ${token}` } });
+      
+      if (tipoAnexo === 'upload') {
+        // Upload de arquivo
+        if (!arquivoUpload) {
+          toast.error('Selecione um arquivo');
+          return;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', arquivoUpload);
+        
+        await axios.post(
+          `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/anexo/upload`,
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        );
+        
+        setArquivoUpload(null);
+      } else {
+        // Link
+        if (!novoAnexo.nome.trim() || !novoAnexo.url.trim()) {
+          toast.error('Preencha nome e URL');
+          return;
+        }
+        
+        await axios.post(
+          `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/anexo`,
+          novoAnexo,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+      
       setNovoAnexo({ nome: '', url: '', tipo: 'link' });
       setModalAnexoAberto(false);
       toast.success('Anexo adicionado!');
-      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setCardSelecionado(response.data);
     } catch (error) {
+      console.error(error);
       toast.error('Erro ao adicionar anexo');
     }
   };
