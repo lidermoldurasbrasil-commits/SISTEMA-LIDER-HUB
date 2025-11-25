@@ -7801,7 +7801,7 @@ async def mover_card(movimento: dict, current_user: dict = Depends(get_current_u
 @api_router.post("/kanban/cards/{card_id}/checklist")
 async def add_checklist_item(card_id: str, item: dict, current_user: dict = Depends(get_current_user)):
     """Adiciona um item ao checklist do card
-    Espera: {"texto": "Fazer algo"}
+    Espera: {"texto": "Fazer algo", "assignee": "username"} (assignee opcional)
     """
     novo_item = {
         "id": str(uuid.uuid4()),
@@ -7810,11 +7810,19 @@ async def add_checklist_item(card_id: str, item: dict, current_user: dict = Depe
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
+    # Adicionar assignee se fornecido
+    if item.get('assignee'):
+        novo_item['assignee'] = item.get('assignee')
+    
     # Registrar atividade
+    descricao = f"Adicionou item no checklist: {item.get('texto', '')}"
+    if item.get('assignee'):
+        descricao += f" (atribuído a {item.get('assignee')})"
+    
     atividade = {
         "id": str(uuid.uuid4()),
         "tipo": "adicionou_item_checklist",
-        "descricao": f"Adicionou item no checklist: {item.get('texto', '')}",
+        "descricao": descricao,
         "usuario": current_user.get('username', 'Usuário'),
         "data": datetime.now(timezone.utc).isoformat()
     }
