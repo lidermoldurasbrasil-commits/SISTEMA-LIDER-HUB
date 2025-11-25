@@ -1394,6 +1394,101 @@ export default function KanbanBoard() {
         </div>
       )}
 
+      {/* Modal Membros */}
+      {modalMembrosAberto && cardSelecionado && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Membros</h2>
+              <button onClick={() => setModalMembrosAberto(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Lista de Membros */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Membros do Card:</label>
+                {cardSelecionado.assignees && cardSelecionado.assignees.length > 0 ? (
+                  <div className="flex gap-2 flex-wrap mb-3">
+                    {cardSelecionado.assignees.map((membro, i) => (
+                      <div key={i} className="bg-indigo-100 text-indigo-700 px-3 py-2 rounded-full text-sm flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        {membro}
+                        <button 
+                          onClick={async () => {
+                            await removerMembro(membro);
+                            // Recarregar card para atualizar a lista
+                            const token = localStorage.getItem('token');
+                            const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            setCardSelecionado(response.data);
+                          }} 
+                          className="hover:text-indigo-900"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm mb-3">Nenhum membro atribuído</p>
+                )}
+              </div>
+
+              {/* Adicionar Membro */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Adicionar Membro:</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={novoMembro} 
+                    onChange={(e) => setNovoMembro(e.target.value)} 
+                    onKeyPress={async (e) => {
+                      if (e.key === 'Enter') {
+                        await adicionarMembro();
+                        // Recarregar card
+                        const token = localStorage.getItem('token');
+                        const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                        setCardSelecionado(response.data);
+                      }
+                    }}
+                    placeholder="Nome do membro..." 
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm" 
+                  />
+                  <button 
+                    onClick={async () => {
+                      await adicionarMembro();
+                      // Recarregar card
+                      const token = localStorage.getItem('token');
+                      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                      });
+                      setCardSelecionado(response.data);
+                    }}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t">
+              <button
+                onClick={() => setModalMembrosAberto(false)}
+                className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Data de Vencimento */}
       {modalDataAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
