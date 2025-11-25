@@ -1574,8 +1574,152 @@ export default function KanbanBoard() {
                     </div>
                   </div>
 
+                  {/* A Resolver */}
+                  <div className="border-t pt-6">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <HelpCircle className="w-4 h-4" />
+                      A Resolver
+                      <span className="text-xs font-normal text-gray-500">(Perguntas e Decisões)</span>
+                    </h3>
+                    {cardSelecionado.questoes_resolver && cardSelecionado.questoes_resolver.length > 0 ? (
+                      <div className="space-y-3 mb-3">
+                        {cardSelecionado.questoes_resolver.map((questao) => (
+                          <div 
+                            key={questao.id} 
+                            className={`border-2 rounded-lg p-4 transition-all ${
+                              questao.resolvida 
+                                ? 'border-green-300 bg-green-50' 
+                                : 'border-orange-300 bg-orange-50'
+                            }`}
+                          >
+                            {/* Questão Principal */}
+                            <div className="flex items-start gap-3 mb-3">
+                              <input 
+                                type="checkbox" 
+                                checked={questao.resolvida} 
+                                onChange={() => marcarQuestaoResolvida(questao.id, questao.resolvida)} 
+                                className="w-5 h-5 mt-0.5" 
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-start justify-between">
+                                  <p className={`font-medium ${questao.resolvida ? 'line-through text-gray-600' : 'text-gray-900'}`}>
+                                    {questao.pergunta}
+                                  </p>
+                                  <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                                    questao.resolvida 
+                                      ? 'bg-green-200 text-green-800' 
+                                      : 'bg-orange-200 text-orange-800'
+                                  }`}>
+                                    {questao.resolvida ? 'Resolvido' : 'Pendente'}
+                                  </span>
+                                </div>
+                                {questao.criado_em && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Criado em {new Date(questao.criado_em).toLocaleDateString('pt-BR')}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Respostas/Decisões */}
+                            {questao.respostas && questao.respostas.length > 0 && (
+                              <div className="ml-8 space-y-2 mb-3">
+                                <p className="text-xs font-semibold text-gray-600 mb-2">
+                                  💡 Respostas e Decisões:
+                                </p>
+                                {questao.respostas.map((resposta, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm"
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                        {resposta.autor?.substring(0, 2).toUpperCase() || 'AN'}
+                                      </div>
+                                      <div className="flex-1">
+                                        <p className="text-sm text-gray-900">{resposta.texto}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <span className="text-xs font-medium text-gray-700">
+                                            {resposta.autor || 'Anônimo'}
+                                          </span>
+                                          {resposta.criado_em && (
+                                            <span className="text-xs text-gray-500">
+                                              • {new Date(resposta.criado_em).toLocaleString('pt-BR')}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Adicionar Resposta */}
+                            {questaoExpandida === questao.id ? (
+                              <div className="ml-8 flex gap-2">
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  value={novaResposta}
+                                  onChange={(e) => setNovaResposta(e.target.value)}
+                                  onKeyPress={(e) => e.key === 'Enter' && adicionarResposta(questao.id)}
+                                  placeholder="Digite sua resposta ou decisão..."
+                                  className="flex-1 border-2 border-indigo-300 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                                />
+                                <button
+                                  onClick={() => adicionarResposta(questao.id)}
+                                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                >
+                                  Enviar
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setQuestaoExpandida(null);
+                                    setNovaResposta('');
+                                  }}
+                                  className="text-gray-600 hover:text-gray-900 p-2"
+                                >
+                                  <X className="w-5 h-5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setQuestaoExpandida(questao.id)}
+                                className="ml-8 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1 font-medium"
+                              >
+                                <Plus className="w-4 h-4" />
+                                Adicionar resposta/decisão
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm mb-3">Nenhuma questão para resolver</p>
+                    )}
+                    
+                    {/* Adicionar Nova Questão */}
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={novaQuestao} 
+                        onChange={(e) => setNovaQuestao(e.target.value)} 
+                        onKeyPress={(e) => e.key === 'Enter' && adicionarQuestao()} 
+                        placeholder="Nova pergunta ou ideia a resolver..." 
+                        className="flex-1 border-2 border-orange-300 rounded-lg px-3 py-2 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-200" 
+                      />
+                      <button 
+                        onClick={adicionarQuestao} 
+                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm font-medium"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Comentários */}
-                  <div>
+                  <div className="border-t pt-6">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                       <MessageSquare className="w-4 h-4" />
                       Comentários
