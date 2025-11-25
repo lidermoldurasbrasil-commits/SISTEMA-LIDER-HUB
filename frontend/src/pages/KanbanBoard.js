@@ -756,7 +756,17 @@ export default function KanbanBoard() {
                                         {card.labels && card.labels.length > 0 && (
                                           <div className="flex gap-1 mb-2 flex-wrap">
                                             {card.labels.map((label, i) => (
-                                              <div key={i} className="h-2 w-10 rounded-full" style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }} />
+                                              label.name ? (
+                                                <span 
+                                                  key={i} 
+                                                  className="px-2 py-0.5 rounded text-xs font-medium text-white" 
+                                                  style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }}
+                                                >
+                                                  {label.name}
+                                                </span>
+                                              ) : (
+                                                <div key={i} className="h-2 w-10 rounded-full" style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }} />
+                                              )
                                             ))}
                                           </div>
                                         )}
