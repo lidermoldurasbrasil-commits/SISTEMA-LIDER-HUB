@@ -417,6 +417,16 @@ export default function KanbanBoard() {
   const abrirModalLabels = () => {
     if (cardSelecionado) {
       setLabelsEditando(cardSelecionado.labels || []);
+      
+      // Carregar nomes personalizados de todas as labels do card
+      const novosLabelsGlobais = { ...labelsGlobais };
+      (cardSelecionado.labels || []).forEach(label => {
+        if (label.name && label.name.trim()) {
+          novosLabelsGlobais[label.color] = label.name;
+        }
+      });
+      setLabelsGlobais(novosLabelsGlobais);
+      
       setModalLabelAberto(true);
     }
   };
