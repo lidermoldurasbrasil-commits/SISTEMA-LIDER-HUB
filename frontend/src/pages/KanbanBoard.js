@@ -595,6 +595,51 @@ export default function KanbanBoard() {
     }
   };
 
+  // ========== ATRIBUIR MEMBROS A ETIQUETAS ==========
+  const atribuirMembroLabel = async (labelColor, username) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/labels/${labelColor}/assignee`,
+        { assignee: username },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setAtribuindoMembroLabel(null);
+      toast.success('Membro atribuído à etiqueta!');
+      
+      // Recarregar cards e card selecionado
+      carregarDados();
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao atribuir membro');
+    }
+  };
+
+  const removerMembroLabel = async (labelColor) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/labels/${labelColor}/assignee`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Membro removido da etiqueta!');
+      
+      // Recarregar cards e card selecionado
+      carregarDados();
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao remover membro');
+    }
+  };
+
   // ========== ATRIBUIR MEMBROS A QUESTÕES ==========
   const atribuirMembroQuestao = async (questaoId, username) => {
     try {
