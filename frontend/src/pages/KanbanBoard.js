@@ -44,6 +44,8 @@ const MemberAvatar = ({ username, size = 'sm' }) => {
       'bg-gradient-to-br from-rose-500 to-pink-500',
       'bg-gradient-to-br from-amber-500 to-orange-500',
     ];
+    // Proteção contra undefined/null
+    if (!name) return colors[0];
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
   };
