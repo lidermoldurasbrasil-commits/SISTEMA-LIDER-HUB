@@ -916,6 +916,100 @@ export default function KanbanBoard() {
           </div>
         </div>
       )}
+
+      {/* Modal Plano de Fundo */}
+      {modalFundoAberto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Escolher Plano de Fundo</h2>
+              <button onClick={() => setModalFundoAberto(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Gradientes */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Gradientes</h3>
+                <div className="grid grid-cols-5 gap-3">
+                  {fundos.filter(f => f.id.startsWith('gradient')).map((fundo) => (
+                    <button
+                      key={fundo.id}
+                      onClick={() => selecionarFundo(fundo.id)}
+                      className={`h-20 rounded-lg ${fundo.classe} ${fundoSelecionado === fundo.id ? 'ring-4 ring-indigo-600 ring-offset-2' : 'hover:opacity-80'} transition-all`}
+                      title={fundo.nome}
+                    >
+                      {fundoSelecionado === fundo.id && (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="bg-white rounded-full p-1">
+                            <CheckSquare className="w-6 h-6 text-indigo-600" />
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cores Sólidas */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Cores Sólidas</h3>
+                <div className="grid grid-cols-5 gap-3">
+                  {fundos.filter(f => f.id.startsWith('solid')).map((fundo) => (
+                    <button
+                      key={fundo.id}
+                      onClick={() => selecionarFundo(fundo.id)}
+                      className={`h-20 rounded-lg ${fundo.classe} ${fundoSelecionado === fundo.id ? 'ring-4 ring-white ring-offset-2' : 'hover:opacity-80'} transition-all`}
+                      title={fundo.nome}
+                    >
+                      {fundoSelecionado === fundo.id && (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="bg-white rounded-full p-1">
+                            <CheckSquare className="w-6 h-6 text-gray-900" />
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Imagens/Padrões */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Padrões</h3>
+                <div className="grid grid-cols-5 gap-3">
+                  {fundos.filter(f => f.id.startsWith('image')).map((fundo) => (
+                    <button
+                      key={fundo.id}
+                      onClick={() => selecionarFundo(fundo.id)}
+                      className={`h-20 rounded-lg ${fundo.classe} ${fundoSelecionado === fundo.id ? 'ring-4 ring-indigo-600 ring-offset-2' : 'hover:opacity-80'} transition-all`}
+                      title={fundo.nome}
+                    >
+                      {fundoSelecionado === fundo.id && (
+                        <div className="w-full h-full flex items-center justify-center bg-black/30 rounded-lg">
+                          <div className="bg-white rounded-full p-1">
+                            <CheckSquare className="w-6 h-6 text-indigo-600" />
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t">
+              <button
+                onClick={() => setModalFundoAberto(false)}
+                className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
