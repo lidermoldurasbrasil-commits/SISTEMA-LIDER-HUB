@@ -920,7 +920,7 @@ export default function KanbanBoard() {
                         </div>
 
                         {/* Adicionar Card - TOPO */}
-                        <div className="p-3 border-b bg-gray-50/50">
+                        <div className="p-3 border-b-2" style={{ borderColor: coluna.cor ? `${coluna.cor}30` : '#E5E7EB' }}>
                           {adicionandoCardColuna === coluna.id ? (
                             <div className="space-y-2">
                               <textarea
@@ -934,13 +934,13 @@ export default function KanbanBoard() {
                                   }
                                 }}
                                 placeholder="Inserir um título para este cartão..."
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                                className="w-full border-2 border-indigo-300 rounded-lg px-3 py-2 text-sm resize-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
                                 rows="3"
                               />
                               <div className="flex items-center gap-2">
                                 <button
                                   onClick={() => criarCardRapido(coluna.id)}
-                                  className="bg-indigo-600 text-white px-4 py-1.5 rounded hover:bg-indigo-700 text-sm font-medium"
+                                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-md hover:shadow-lg text-sm font-semibold transition-all"
                                 >
                                   Adicionar cartão
                                 </button>
@@ -949,7 +949,7 @@ export default function KanbanBoard() {
                                     setAdicionandoCardColuna(null);
                                     setTextoNovoCard('');
                                   }}
-                                  className="text-gray-600 hover:text-gray-900 p-1.5"
+                                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 p-2 rounded-lg transition-all"
                                 >
                                   <X className="w-5 h-5" />
                                 </button>
@@ -958,7 +958,7 @@ export default function KanbanBoard() {
                           ) : (
                             <button
                               onClick={() => setAdicionandoCardColuna(coluna.id)}
-                              className="w-full text-left text-sm text-gray-700 hover:bg-gray-200/70 px-2 py-1.5 rounded flex items-center gap-2 font-medium"
+                              className="w-full text-left text-sm text-gray-700 hover:bg-white hover:shadow-md px-3 py-2 rounded-lg flex items-center gap-2 font-semibold transition-all border-2 border-dashed border-gray-300 hover:border-indigo-400"
                             >
                               <Plus className="w-4 h-4" />
                               Adicionar um cartão
@@ -968,7 +968,15 @@ export default function KanbanBoard() {
 
                         <Droppable droppableId={coluna.id} type="card">
                           {(provided, snapshot) => (
-                            <div ref={provided.innerRef} {...provided.droppableProps} className={`flex-1 overflow-y-auto p-3 space-y-2 ${snapshot.isDraggingOver ? 'bg-indigo-50' : ''}`}>
+                            <div 
+                              ref={provided.innerRef} 
+                              {...provided.droppableProps} 
+                              className={`flex-1 overflow-y-auto p-3 space-y-3 transition-all duration-200 ${
+                                snapshot.isDraggingOver 
+                                  ? 'bg-indigo-50 ring-2 ring-indigo-300 ring-inset' 
+                                  : ''
+                              }`}
+                            >
                               {(cards[coluna.id] || []).map((card, cardIndex) => (
                                 <Draggable key={card.id} draggableId={card.id} index={cardIndex}>
                                   {(provided, snapshot) => {
