@@ -414,19 +414,25 @@ export default function KanbanBoard() {
     setLabelsEditando(novasLabels);
   };
 
-  const salvarLabels = async () => {
+  const salvarLabels = async (labelsParaSalvar = null) => {
     if (!cardSelecionado) return;
+    
+    const labels = labelsParaSalvar || labelsEditando;
     
     try {
       const token = localStorage.getItem('token');
       await axios.put(
         `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/labels`,
-        { labels: labelsEditando },
+        { labels },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      toast.success('Etiquetas atualizadas!');
-      setModalLabelAberto(false);
+      // Atualizar card selecionado
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+      carregarDados();
       
       // Recarregar card
       const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
