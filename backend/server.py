@@ -7912,6 +7912,216 @@ async def delete_comentario(card_id: str, comentario_id: str, current_user: dict
     
     return {"message": "Comentário removido com sucesso"}
 
+@api_router.post("/kanban/cards/{card_id}/copiar")
+async def copiar_card(card_id: str, destino: dict, current_user: dict = Depends(get_current_user)):
+    """Copia um card para outra coluna
+    Espera: {"coluna_destino_id": "uuid"}
+    """
+    # Buscar card original
+    card_original = await db.kanban_cards.find_one({"id": card_id})
+    if not card_original:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    coluna_destino_id = destino.get('coluna_destino_id', card_original['coluna_id'])
+    
+    # Criar cópia
+    novo_card = KanbanCard(
+        titulo=f"{card_original['titulo']} (cópia)",
+        descricao=card_original.get('descricao', ''),
+        coluna_id=coluna_destino_id,
+        labels=card_original.get('labels', []),
+        assignees=card_original.get('assignees', []),
+        checklist=card_original.get('checklist', []),
+        data_vencimento=card_original.get('data_vencimento'),
+        posicao=0  # Colocar no topo
+    )
+    
+    card_dict = novo_card.model_dump()
+    await db.kanban_cards.insert_one(card_dict)
+    
+    if '_id' in card_dict:
+        del card_dict['_id']
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "copiou",
+        "descricao": f"Copiou este card de {card_original['titulo']}",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.kanban_cards.update_one(
+        {"id": card_dict['id']},
+        {"$push": {"atividades": atividade}}
+    )
+    
+    return card_dict
+
+@api_router.post("/kanban/cards/{card_id}/arquivar")
+async def arquivar_card(card_id: str, current_user: dict = Depends(get_current_user)):
+    """Arquiva ou desarquiva um card"""
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    novo_estado = not card.get('arquivado', False)
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "arquivou" if novo_estado else "desarquivou",
+        "descricao": "Arquivou este card" if novo_estado else "Desarquivou este card",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                "arquivado": novo_estado,
+                "updated_at": datetime.now(timezone.utc)
+            },
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    return {"message": "Card arquivado" if novo_estado else "Card desarquivado", "arquivado": novo_estado}
+
+@api_router.post("/kanban/cards/{card_id}/anexo")
+async def add_anexo(card_id: str, anexo: dict, current_user: dict = Depends(get_current_user)):
+    """Adiciona um anexo ao card
+    Espera: {"nome": "arquivo.pdf", "url": "https://...", "tipo": "pdf"}
+    """
+    novo_anexo = {
+        "id": str(uuid.uuid4()),
+        "nome": anexo.get('nome', 'Arquivo'),
+        "url": anexo.get('url', ''),
+        "tipo": anexo.get('tipo', 'link'),
+        "data": datetime.now(timezone.utc).isoformat(),
+        "usuario": current_user.get('username', 'Usuário')
+    }
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "anexou",
+        "descricao": f"Anexou {novo_anexo['nome']}",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$push": {
+                "anexos": novo_anexo,
+                "atividades": atividade
+            },
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return novo_anexo
+
+@api_router.delete("/kanban/cards/{card_id}/anexo/{anexo_id}")
+async def delete_anexo(card_id: str, anexo_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove um anexo do card"""
+    # Buscar anexo para registrar atividade
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    anexo = next((a for a in card.get('anexos', []) if a['id'] == anexo_id), None)
+    
+    # Registrar atividade
+    if anexo:
+        atividade = {
+            "id": str(uuid.uuid4()),
+            "tipo": "removeu_anexo",
+            "descricao": f"Removeu anexo {anexo.get('nome', 'Arquivo')}",
+            "usuario": current_user.get('username', 'Usuário'),
+            "data": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.kanban_cards.update_one(
+            {"id": card_id},
+            {"$push": {"atividades": atividade}}
+        )
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$pull": {"anexos": {"id": anexo_id}},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Anexo removido com sucesso"}
+
+@api_router.post("/kanban/cards/{card_id}/membro")
+async def add_membro(card_id: str, membro: dict, current_user: dict = Depends(get_current_user)):
+    """Adiciona um membro ao card
+    Espera: {"usuario_id": "uuid" ou "username": "nome"}
+    """
+    usuario_id = membro.get('usuario_id') or membro.get('username', 'Usuário')
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "adicionou_membro",
+        "descricao": f"Adicionou {usuario_id} ao card",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$addToSet": {"assignees": usuario_id},
+            "$push": {"atividades": atividade},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Membro adicionado"}
+
+@api_router.delete("/kanban/cards/{card_id}/membro/{usuario_id}")
+async def remove_membro(card_id: str, usuario_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove um membro do card"""
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "removeu_membro",
+        "descricao": f"Removeu {usuario_id} do card",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$pull": {"assignees": usuario_id},
+            "$push": {"atividades": atividade},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Membro removido"}
+
 # ============= FIM KANBAN BOARD =============
 
 # Include the router in the main app
