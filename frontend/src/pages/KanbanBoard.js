@@ -75,6 +75,9 @@ export default function KanbanBoard() {
   const [modalDataAberto, setModalDataAberto] = useState(false);
   const [dataVencimento, setDataVencimento] = useState('');
   const [horaVencimento, setHoraVencimento] = useState('12:00');
+  
+  // Estados para membros
+  const [modalMembrosAberto, setModalMembrosAberto] = useState(false);
 
   const fundos = [
     { id: 'gradient-1', nome: 'Índigo Roxo', classe: 'bg-gradient-to-br from-indigo-50 to-purple-50' },
