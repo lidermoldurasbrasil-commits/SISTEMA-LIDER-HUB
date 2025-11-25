@@ -427,19 +427,27 @@ export default function KanbanBoard() {
     );
   }
 
+  const fundoAtual = fundos.find(f => f.id === fundoSelecionado) || fundos[0];
+
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-indigo-50 to-purple-50">
+    <div className={`h-screen flex flex-col ${fundoAtual.classe}`}>
       {/* Header */}
-      <div className="bg-white shadow-sm border-b px-6 py-4">
+      <div className="bg-white/90 backdrop-blur-sm shadow-sm border-b px-6 py-4">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Planejamento - Kanban Board</h1>
             <p className="text-gray-600 text-sm mt-1">Organize suas tarefas com drag and drop</p>
           </div>
-          <button onClick={() => abrirModalColuna()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            Nova Coluna
-          </button>
+          <div className="flex gap-3">
+            <button onClick={() => setModalFundoAberto(true)} className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2">
+              <span className="w-5 h-5 rounded border-2 border-gray-400" style={{ background: fundoAtual.id.startsWith('gradient') ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : fundoAtual.id.startsWith('solid') ? fundoAtual.classe.replace('bg-', '') : 'url(...)' }}></span>
+              Plano de Fundo
+            </button>
+            <button onClick={() => abrirModalColuna()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              Nova Coluna
+            </button>
+          </div>
         </div>
       </div>
 
