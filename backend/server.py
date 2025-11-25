@@ -8122,6 +8122,134 @@ async def remove_membro(card_id: str, usuario_id: str, current_user: dict = Depe
     
     return {"message": "Membro removido"}
 
+@api_router.put("/kanban/cards/{card_id}/labels")
+async def atualizar_labels(card_id: str, labels_data: dict, current_user: dict = Depends(get_current_user)):
+    """Atualiza as labels de um card
+    Espera: {"labels": [{"color": "red", "name": "Urgente"}, ...]}
+    """
+    labels = labels_data.get('labels', [])
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                "labels": labels,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Labels atualizadas", "labels": labels}
+
+@api_router.put("/kanban/cards/{card_id}/descricao")
+async def atualizar_descricao(card_id: str, descricao_data: dict, current_user: dict = Depends(get_current_user)):
+    """Atualiza a descrição de um card
+    Espera: {"descricao": "Nova descrição..."}
+    """
+    descricao = descricao_data.get('descricao', '')
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "atualizou_descricao",
+        "descricao": "Atualizou a descrição do card",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                "descricao": descricao,
+                "updated_at": datetime.now(timezone.utc)
+            },
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Descrição atualizada"}
+
+@api_router.post("/kanban/cards/{card_id}/checklist/{item_id}/subtarefa")
+async def add_subtarefa(card_id: str, item_id: str, subtarefa: dict, current_user: dict = Depends(get_current_user)):
+    """Adiciona uma sub-tarefa a um item do checklist
+    Espera: {"texto": "Sub-tarefa"}
+    """
+    # Buscar o card
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Atualizar o item do checklist
+    checklist = card.get('checklist', [])
+    for i, item in enumerate(checklist):
+        if item['id'] == item_id:
+            if 'subtarefas' not in checklist[i]:
+                checklist[i]['subtarefas'] = []
+            
+            nova_subtarefa = {
+                "id": str(uuid.uuid4()),
+                "texto": subtarefa.get('texto', ''),
+                "concluido": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            checklist[i]['subtarefas'].append(nova_subtarefa)
+            break
+    
+    # Salvar checklist atualizado
+    await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                "checklist": checklist,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    
+    return {"message": "Sub-tarefa adicionada", "subtarefa": nova_subtarefa}
+
+@api_router.put("/kanban/cards/{card_id}/checklist/{item_id}/subtarefa/{subtarefa_id}")
+async def toggle_subtarefa(card_id: str, item_id: str, subtarefa_id: str, subtarefa_data: dict, current_user: dict = Depends(get_current_user)):
+    """Toggle concluído de uma sub-tarefa
+    Espera: {"concluido": true}
+    """
+    # Buscar o card
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Atualizar a sub-tarefa
+    checklist = card.get('checklist', [])
+    for i, item in enumerate(checklist):
+        if item['id'] == item_id:
+            subtarefas = item.get('subtarefas', [])
+            for j, sub in enumerate(subtarefas):
+                if sub['id'] == subtarefa_id:
+                    checklist[i]['subtarefas'][j]['concluido'] = subtarefa_data.get('concluido', False)
+                    break
+            break
+    
+    # Salvar checklist atualizado
+    await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                "checklist": checklist,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    
+    return {"message": "Sub-tarefa atualizada"}
+
 # ============= FIM KANBAN BOARD =============
 
 # Include the router in the main app
