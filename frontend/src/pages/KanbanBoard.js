@@ -118,6 +118,7 @@ export default function KanbanBoard() {
   // Estados para atribuir membros
   const [atribuindoMembroItem, setAtribuindoMembroItem] = useState(null); // ID do item checklist
   const [atribuindoMembroQuestao, setAtribuindoMembroQuestao] = useState(null); // ID da questão
+  const [atribuindoMembroLabel, setAtribuindoMembroLabel] = useState(null); // Cor da label
   const [membrosDisponiveis, setMembrosDisponiveis] = useState([]);
   const [modalCopiarAberto, setModalCopiarAberto] = useState(false);
   const [colunaSelecionadaMover, setColunaSelecionadaMover] = useState(null);
