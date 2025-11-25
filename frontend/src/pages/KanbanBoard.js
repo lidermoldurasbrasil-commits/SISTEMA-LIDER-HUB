@@ -1938,7 +1938,10 @@ export default function KanbanBoard() {
                                         <div className="flex items-center gap-1">
                                           <MemberAvatar username={questao.assignee} size="xs" />
                                           <button
-                                            onClick={() => removerMembroQuestao(questao.id)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              removerMembroQuestao(questao.id);
+                                            }}
                                             className="p-0.5 hover:bg-orange-200 rounded"
                                             title="Remover responsável"
                                           >
@@ -1947,7 +1950,10 @@ export default function KanbanBoard() {
                                         </div>
                                       ) : (
                                         <button
-                                          onClick={() => setAtribuindoMembroQuestao(atribuindoMembroQuestao === questao.id ? null : questao.id)}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAtribuindoMembroQuestao(atribuindoMembroQuestao === questao.id ? null : questao.id);
+                                          }}
                                           className="p-1 hover:bg-orange-200 rounded text-gray-600 hover:text-gray-900"
                                           title="Atribuir responsável"
                                         >
@@ -1957,14 +1963,20 @@ export default function KanbanBoard() {
                                       
                                       {/* Dropdown de Membros */}
                                       {atribuindoMembroQuestao === questao.id && (
-                                        <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border-2 border-gray-200 p-2 z-50 w-48">
+                                        <div 
+                                          className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border-2 border-gray-200 p-2 z-50 w-48"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
                                           <div className="text-xs font-semibold text-gray-600 mb-2 px-2">Atribuir a:</div>
                                           <div className="max-h-48 overflow-y-auto">
                                             {membrosDisponiveis.length > 0 ? (
                                               membrosDisponiveis.map((membro) => (
                                                 <button
                                                   key={membro.id}
-                                                  onClick={() => atribuirMembroQuestao(questao.id, membro.username)}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    atribuirMembroQuestao(questao.id, membro.username);
+                                                  }}
                                                   className="w-full text-left px-2 py-1.5 hover:bg-orange-50 rounded flex items-center gap-2"
                                                 >
                                                   <MemberAvatar username={membro.username} size="xs" />
