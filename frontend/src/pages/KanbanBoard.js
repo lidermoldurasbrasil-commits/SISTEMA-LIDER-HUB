@@ -524,6 +524,92 @@ export default function KanbanBoard() {
     return Math.round((concluidas / item.subtarefas.length) * 100);
   };
 
+  // ========== ATRIBUIR MEMBROS AO CHECKLIST ==========
+  const atribuirMembroChecklist = async (itemId, username) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist/${itemId}/assignee`,
+        { assignee: username },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setAtribuindoMembroItem(null);
+      toast.success('Membro atribuído!');
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao atribuir membro');
+    }
+  };
+
+  const removerMembroChecklist = async (itemId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/checklist/${itemId}/assignee`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Membro removido!');
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao remover membro');
+    }
+  };
+
+  // ========== ATRIBUIR MEMBROS A QUESTÕES ==========
+  const atribuirMembroQuestao = async (questaoId, username) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/questoes/${questaoId}/assignee`,
+        { assignee: username },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setAtribuindoMembroQuestao(null);
+      toast.success('Membro atribuído!');
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao atribuir membro');
+    }
+  };
+
+  const removerMembroQuestao = async (questaoId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/questoes/${questaoId}/assignee`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Membro removido!');
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+    } catch (error) {
+      toast.error('Erro ao remover membro');
+    }
+  };
+
   // ========== SUB-SUBTAREFAS (ANINHADAS) ==========
   const adicionarSubSubtarefa = async (itemId, subtarefaId) => {
     if (!textoSubSubtarefa.trim() || !cardSelecionado) return;
