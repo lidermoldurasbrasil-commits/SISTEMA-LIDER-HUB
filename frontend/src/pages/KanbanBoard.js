@@ -64,6 +64,12 @@ export default function KanbanBoard() {
   // Estados para sub-tarefas
   const [adicionandoSubtarefa, setAdicionandoSubtarefa] = useState(null);
   const [textoSubtarefa, setTextoSubtarefa] = useState('');
+  
+  // Estados para capa
+  const [modalCapaAberto, setModalCapaAberto] = useState(false);
+  const [capaUrl, setCapaUrl] = useState('');
+  const [capaCor, setCapaCor] = useState('');
+  const [tipoCapaSelecionado, setTipoCapaSelecionado] = useState('cor'); // 'cor' ou 'imagem'
 
   const fundos = [
     { id: 'gradient-1', nome: 'Índigo Roxo', classe: 'bg-gradient-to-br from-indigo-50 to-purple-50' },
