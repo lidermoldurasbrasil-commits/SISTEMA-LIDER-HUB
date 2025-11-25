@@ -13,6 +13,20 @@ const LABEL_COLORS = [
   { value: 'yellow', label: 'Amarelo', hex: '#F59E0B' },
   { value: 'green', label: 'Verde', hex: '#10B981' },
   { value: 'orange', label: 'Laranja', hex: '#F97316' },
+  { value: 'pink', label: 'Rosa', hex: '#EC4899' },
+  { value: 'indigo', label: 'Índigo', hex: '#6366F1' },
+  { value: 'teal', label: 'Azul Petróleo', hex: '#14B8A6' },
+  { value: 'lime', label: 'Lima', hex: '#84CC16' },
+  { value: 'cyan', label: 'Ciano', hex: '#06B6D4' },
+  { value: 'emerald', label: 'Esmeralda', hex: '#059669' },
+  { value: 'amber', label: 'Âmbar', hex: '#F59E0B' },
+  { value: 'rose', label: 'Rosa Escuro', hex: '#F43F5E' },
+  { value: 'violet', label: 'Violeta', hex: '#7C3AED' },
+  { value: 'fuchsia', label: 'Fúcsia', hex: '#D946EF' },
+  { value: 'sky', label: 'Azul Céu', hex: '#0EA5E9' },
+  { value: 'slate', label: 'Ardósia', hex: '#64748B' },
+  { value: 'gray', label: 'Cinza', hex: '#6B7280' },
+  { value: 'black', label: 'Preto', hex: '#1F2937' },
 ];
 
 // Componente de Avatar para Membros
