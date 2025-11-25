@@ -2741,6 +2741,11 @@ export default function KanbanBoard() {
                       } else {
                         // Criar nova
                         const novasLabels = [...labelsEditando, { ...novaLabel }];
+                        
+                        // Salvar nome personalizado globalmente
+                        const novosLabelsGlobais = { ...labelsGlobais, [novaLabel.color]: novaLabel.name };
+                        setLabelsGlobais(novosLabelsGlobais);
+                        
                         setLabelsEditando(novasLabels);
                         salvarLabels(novasLabels);
                         setCriandoLabel(false);
