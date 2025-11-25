@@ -7543,7 +7543,10 @@ class KanbanCard(BaseModel):
     assignees: List[str] = []  # IDs dos usuários atribuídos
     checklist: List[dict] = []  # [{"id": "uuid", "texto": "...", "concluido": bool}]
     comentarios: List[dict] = []  # [{"id": "uuid", "autor": "...", "texto": "...", "data": "..."}]
+    anexos: List[dict] = []  # [{"id": "uuid", "nome": "...", "url": "...", "tipo": "...", "data": "..."}]
+    atividades: List[dict] = []  # [{"id": "uuid", "tipo": "...", "descricao": "...", "usuario": "...", "data": "..."}]
     data_vencimento: Optional[str] = None
+    arquivado: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
