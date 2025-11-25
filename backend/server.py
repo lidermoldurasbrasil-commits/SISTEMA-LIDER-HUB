@@ -7810,10 +7810,22 @@ async def add_checklist_item(card_id: str, item: dict, current_user: dict = Depe
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "adicionou_item_checklist",
+        "descricao": f"Adicionou item no checklist: {item.get('texto', '')}",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
     result = await db.kanban_cards.update_one(
         {"id": card_id},
         {
-            "$push": {"checklist": novo_item},
+            "$push": {
+                "checklist": novo_item,
+                "atividades": atividade
+            },
             "$set": {"updated_at": datetime.now(timezone.utc)}
         }
     )
