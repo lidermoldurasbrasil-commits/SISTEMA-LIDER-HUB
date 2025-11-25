@@ -1644,9 +1644,58 @@ export default function KanbanBoard() {
                                   className="w-4 h-4 mt-0.5" 
                                 />
                                 <div className="flex-1">
-                                  <span className={`${item.concluido ? 'line-through text-gray-500' : 'text-gray-900'} font-medium`}>
-                                    {item.texto}
-                                  </span>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className={`${item.concluido ? 'line-through text-gray-500' : 'text-gray-900'} font-medium flex-1`}>
+                                      {item.texto}
+                                    </span>
+                                    
+                                    {/* Atribuir Membro */}
+                                    <div className="relative flex items-center gap-1">
+                                      {item.assignee ? (
+                                        <div className="flex items-center gap-1">
+                                          <MemberAvatar username={item.assignee} size="xs" />
+                                          <button
+                                            onClick={() => removerMembroChecklist(item.id)}
+                                            className="p-0.5 hover:bg-gray-200 rounded"
+                                            title="Remover membro"
+                                          >
+                                            <X className="w-3 h-3 text-gray-600" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => setAtribuindoMembroItem(atribuindoMembroItem === item.id ? null : item.id)}
+                                          className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-gray-900"
+                                          title="Atribuir membro"
+                                        >
+                                          <User className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                      
+                                      {/* Dropdown de Membros */}
+                                      {atribuindoMembroItem === item.id && (
+                                        <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border-2 border-gray-200 p-2 z-50 w-48">
+                                          <div className="text-xs font-semibold text-gray-600 mb-2 px-2">Atribuir a:</div>
+                                          <div className="max-h-48 overflow-y-auto">
+                                            {membrosDisponiveis.length > 0 ? (
+                                              membrosDisponiveis.map((membro) => (
+                                                <button
+                                                  key={membro.id}
+                                                  onClick={() => atribuirMembroChecklist(item.id, membro.username)}
+                                                  className="w-full text-left px-2 py-1.5 hover:bg-indigo-50 rounded flex items-center gap-2"
+                                                >
+                                                  <MemberAvatar username={membro.username} size="xs" />
+                                                  <span className="text-sm text-gray-900">{membro.username}</span>
+                                                </button>
+                                              ))
+                                            ) : (
+                                              <p className="text-xs text-gray-500 px-2 py-1">Nenhum membro disponível</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
                                   
                                   {/* Barra de Progresso das Sub-tarefas */}
                                   {totalSubtarefas > 0 && (
