@@ -8510,6 +8510,108 @@ async def toggle_subtarefa(card_id: str, item_id: str, subtarefa_id: str, subtar
     
     return {"message": "Sub-tarefa atualizada"}
 
+
+# ============ ROTAS PARA SUB-SUB-TAREFAS (ANINHADAS) ============
+
+@api_router.post("/kanban/cards/{card_id}/checklist/{item_id}/subtarefa/{subtarefa_id}/subsubtarefa")
+async def adicionar_subsubtarefa(card_id: str, item_id: str, subtarefa_id: str, subtarefa_data: dict, current_user: dict = Depends(get_current_user)):
+    """Adiciona uma sub-sub-tarefa a uma subtarefa"""
+    texto = subtarefa_data.get('texto', '').strip()
+    
+    if not texto:
+        raise HTTPException(status_code=400, detail="Texto é obrigatório")
+    
+    nova_subsubtarefa = {
+        "id": str(uuid.uuid4()),
+        "texto": texto,
+        "concluido": False,
+        "criado_em": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Buscar card para verificar se existe
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "adicionou_subsubtarefa",
+        "descricao": f"Adicionou sub-sub-tarefa: {texto}",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {
+            "id": card_id,
+            "checklist.id": item_id,
+            "checklist.subtarefas.id": subtarefa_id
+        },
+        {
+            "$push": {
+                "checklist.$[item].subtarefas.$[subtarefa].subsubtarefas": nova_subsubtarefa,
+                "atividades": atividade
+            },
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        },
+        array_filters=[
+            {"item.id": item_id},
+            {"subtarefa.id": subtarefa_id}
+        ]
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Item ou subtarefa não encontrados")
+    
+    return nova_subsubtarefa
+
+@api_router.put("/kanban/cards/{card_id}/checklist/{item_id}/subtarefa/{subtarefa_id}/subsubtarefa/{subsubtarefa_id}")
+async def atualizar_subsubtarefa(card_id: str, item_id: str, subtarefa_id: str, subsubtarefa_id: str, subtarefa_data: dict, current_user: dict = Depends(get_current_user)):
+    """Atualiza o status de uma sub-sub-tarefa"""
+    concluido = subtarefa_data.get('concluido', False)
+    
+    # Buscar card para verificar
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "atualizou_subsubtarefa",
+        "descricao": f"Marcou sub-sub-tarefa como {'concluída' if concluido else 'pendente'}",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {
+            "id": card_id,
+            "checklist.id": item_id,
+            "checklist.subtarefas.id": subtarefa_id,
+            "checklist.subtarefas.subsubtarefas.id": subsubtarefa_id
+        },
+        {
+            "$set": {
+                "checklist.$[item].subtarefas.$[subtarefa].subsubtarefas.$[subsubtarefa].concluido": concluido,
+                "updated_at": datetime.now(timezone.utc)
+            },
+            "$push": {"atividades": atividade}
+        },
+        array_filters=[
+            {"item.id": item_id},
+            {"subtarefa.id": subtarefa_id},
+            {"subsubtarefa.id": subsubtarefa_id}
+        ]
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card, item, subtarefa ou sub-subtarefa não encontrados")
+    
+    return {"message": "Sub-sub-tarefa atualizada"}
+
+
 @api_router.put("/kanban/cards/{card_id}/capa")
 async def atualizar_capa(card_id: str, capa_data: dict, current_user: dict = Depends(get_current_user)):
     """Atualiza a capa de um card
