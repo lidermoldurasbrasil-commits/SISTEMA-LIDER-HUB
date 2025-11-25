@@ -868,14 +868,52 @@ export default function KanbanBoard() {
                 {colunas.map((coluna, index) => (
                   <Draggable key={coluna.id} draggableId={coluna.id} index={index}>
                     {(provided, snapshot) => (
-                      <div ref={provided.innerRef} {...provided.draggableProps} className={`flex-shrink-0 w-80 rounded-lg shadow-md flex flex-col ${snapshot.isDragging ? 'opacity-50' : ''}`} style={{ maxHeight: 'calc(100vh - 180px)', backgroundColor: '#F8F9FA', ...provided.draggableProps.style }}>
-                        <div {...provided.dragHandleProps} className="px-4 py-3 border-b cursor-move flex justify-between items-center" style={coluna.cor ? { borderTopColor: coluna.cor, borderTopWidth: '4px' } : {}}>
-                          <h3 className="font-semibold text-gray-900">{coluna.titulo}</h3>
+                      <div 
+                        ref={provided.innerRef} 
+                        {...provided.draggableProps} 
+                        className={`flex-shrink-0 w-80 rounded-xl shadow-lg flex flex-col backdrop-blur-sm border-2 transition-all duration-200 ${
+                          snapshot.isDragging 
+                            ? 'opacity-60 rotate-2 scale-105 shadow-2xl' 
+                            : 'hover:shadow-xl'
+                        }`} 
+                        style={{ 
+                          maxHeight: 'calc(100vh - 180px)', 
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                          borderColor: coluna.cor || '#E5E7EB',
+                          ...provided.draggableProps.style 
+                        }}
+                      >
+                        <div 
+                          {...provided.dragHandleProps} 
+                          className="px-4 py-3 cursor-move flex justify-between items-center rounded-t-xl border-b-2"
+                          style={{ 
+                            borderBottomColor: coluna.cor || '#E5E7EB',
+                            backgroundColor: coluna.cor ? `${coluna.cor}15` : '#F9FAFB'
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            {coluna.cor && (
+                              <div 
+                                className="w-3 h-3 rounded-full shadow-sm" 
+                                style={{ backgroundColor: coluna.cor }}
+                              />
+                            )}
+                            <h3 className="font-bold text-gray-900 text-base">{coluna.titulo}</h3>
+                            <span className="bg-gray-200 text-gray-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                              {(cards[coluna.id] || []).length}
+                            </span>
+                          </div>
                           <div className="flex gap-1">
-                            <button onClick={() => abrirModalColuna(coluna)} className="p-1 hover:bg-gray-100 rounded">
+                            <button 
+                              onClick={() => abrirModalColuna(coluna)} 
+                              className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition-all"
+                            >
                               <Edit2 className="w-4 h-4 text-gray-600" />
                             </button>
-                            <button onClick={() => deletarColuna(coluna.id)} className="p-1 hover:bg-gray-100 rounded">
+                            <button 
+                              onClick={() => deletarColuna(coluna.id)} 
+                              className="p-1.5 hover:bg-red-50 hover:shadow-sm rounded-md transition-all"
+                            >
                               <Trash2 className="w-4 h-4 text-red-600" />
                             </button>
                           </div>
