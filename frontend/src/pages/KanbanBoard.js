@@ -52,6 +52,18 @@ export default function KanbanBoard() {
   const [textoNovoCard, setTextoNovoCard] = useState('');
   const [modalFundoAberto, setModalFundoAberto] = useState(false);
   const [fundoSelecionado, setFundoSelecionado] = useState('gradient-1');
+  
+  // Estados para labels editáveis
+  const [labelsEditando, setLabelsEditando] = useState([]);
+  const [editandoLabelIndex, setEditandoLabelIndex] = useState(null);
+  
+  // Estados para descrição editável
+  const [editandoDescricao, setEditandoDescricao] = useState(false);
+  const [descricaoTemp, setDescricaoTemp] = useState('');
+  
+  // Estados para sub-tarefas
+  const [adicionandoSubtarefa, setAdicionandoSubtarefa] = useState(null);
+  const [textoSubtarefa, setTextoSubtarefa] = useState('');
 
   const fundos = [
     { id: 'gradient-1', nome: 'Índigo Roxo', classe: 'bg-gradient-to-br from-indigo-50 to-purple-50' },
