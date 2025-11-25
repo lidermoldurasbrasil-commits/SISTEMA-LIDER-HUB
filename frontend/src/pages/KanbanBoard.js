@@ -377,6 +377,73 @@ export default function KanbanBoard() {
     return Math.round((concluidas / item.subtarefas.length) * 100);
   };
 
+  // ========== CAPA ==========
+  const abrirModalCapa = () => {
+    setCapaUrl(cardSelecionado?.capa_url || '');
+    setCapaCor(cardSelecionado?.capa_cor || '');
+    setTipoCapaSelecionado(cardSelecionado?.capa_url ? 'imagem' : 'cor');
+    setModalCapaAberto(true);
+  };
+
+  const salvarCapa = async () => {
+    if (!cardSelecionado) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const dados = {};
+      
+      if (tipoCapaSelecionado === 'imagem' && capaUrl.trim()) {
+        dados.capa_url = capaUrl.trim();
+        dados.capa_cor = null;
+      } else if (tipoCapaSelecionado === 'cor' && capaCor) {
+        dados.capa_cor = capaCor;
+        dados.capa_url = null;
+      }
+      
+      await axios.put(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/capa`,
+        dados,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Capa atualizada!');
+      setModalCapaAberto(false);
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao atualizar capa');
+    }
+  };
+
+  const removerCapa = async () => {
+    if (!cardSelecionado) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/capa`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Capa removida!');
+      setModalCapaAberto(false);
+      
+      // Recarregar card
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCardSelecionado(response.data);
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao remover capa');
+    }
+  };
+
   const salvarCard = async () => {
     if (!formCard.titulo.trim()) {
       toast.error('Título é obrigatório');
