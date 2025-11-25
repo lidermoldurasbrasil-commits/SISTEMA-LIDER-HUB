@@ -255,7 +255,7 @@ export default function KanbanBoard() {
     if (labelExiste) {
       setLabelsEditando(labelsEditando.filter(l => l.color !== color));
     } else {
-      setLabelsEditando([...labelsEditando, { color, name: LABEL_COLORS.find(c => c.value === color)?.label || '' }]);
+      setLabelsEditando([...labelsEditando, { color, name: '' }]);
     }
   };
 
