@@ -296,7 +296,9 @@ export default function CalendarioTarefas() {
       data_hora: format(dataHora, "yyyy-MM-dd'T'HH:mm"),
       status: 'A Fazer',
       prioridade: 'Média',
-      tags: []
+      tags: [],
+      localizacao: '',
+      participantes: []
     });
     
     setModalAberto(true);
