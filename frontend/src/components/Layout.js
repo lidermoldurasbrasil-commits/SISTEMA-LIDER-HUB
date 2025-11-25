@@ -48,6 +48,7 @@ export default function Layout({ user, onLogout }) {
       { path: '/gestao/marketing/dashboard', icon: BarChart3, label: 'Dashboard', testId: 'nav-marketing-dashboard' },
       { path: '/gestao/marketing/membros', icon: Users, label: 'Equipe', testId: 'nav-marketing-membros' },
       { path: '/gestao/marketing/calendario', icon: Calendar, label: 'Calendário', testId: 'nav-marketing-calendario' },
+      { path: '/kanban', icon: Trello, label: 'Kanban Board', testId: 'nav-kanban-board' },
     ]}] : []),
     
     // === FÁBRICA E LOJAS === - apenas para admin
