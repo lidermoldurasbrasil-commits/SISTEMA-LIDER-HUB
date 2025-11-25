@@ -777,6 +777,25 @@ export default function KanbanBoard() {
     }
   };
 
+  const deletarResposta = async (questaoId, respostaId) => {
+    if (!window.confirm('Deseja realmente deletar esta resposta?')) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(
+        `${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}/questoes/${questaoId}/respostas/${respostaId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      carregarDados();
+      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setCardSelecionado(response.data);
+      toast.success('Resposta deletada');
+    } catch (error) {
+      console.error('Erro ao deletar resposta:', error);
+      toast.error('Erro ao deletar resposta');
+    }
+  };
+
   const toggleItemChecklist = async (itemId, concluido) => {
     try {
       const token = localStorage.getItem('token');
