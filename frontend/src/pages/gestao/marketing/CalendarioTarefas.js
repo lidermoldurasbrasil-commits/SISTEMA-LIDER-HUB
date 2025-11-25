@@ -596,28 +596,83 @@ export default function CalendarioTarefas() {
         )}
       </div>
 
-      {/* Calendário */}
-      <div className="bg-white rounded-lg shadow p-4" style={{ height: '600px' }}>
-        <Calendar
-          localizer={localizer}
-          events={events}
-          startAccessor="start"
-          endAccessor="end"
-          style={{ height: '100%' }}
-          onSelectEvent={handleSelectEvent}
-          onSelectSlot={handleSelectSlot}
-          selectable={user?.role === 'director'}
-          eventPropGetter={eventStyleGetter}
-          view={view}
-          onView={setView}
-          date={date}
-          onNavigate={setDate}
-          messages={{
-            next: 'Próximo',
-            previous: 'Anterior',
-            today: 'Hoje',
-            month: 'Mês',
-            week: 'Semana',
+      {/* Alternância entre Calendário e Agenda */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 bg-white rounded-lg shadow-sm p-1">
+          <button
+            onClick={() => setViewMode('calendar')}
+            className={`px-4 py-2 rounded-md font-medium transition-all ${
+              viewMode === 'calendar'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <CalendarIcon className="w-5 h-5 inline mr-2" />
+            Calendário
+          </button>
+          <button
+            onClick={() => setViewMode('agenda')}
+            className={`px-4 py-2 rounded-md font-medium transition-all ${
+              viewMode === 'agenda'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <List className="w-5 h-5 inline mr-2" />
+            Agenda do Dia
+          </button>
+        </div>
+
+        {viewMode === 'agenda' && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDate(subDays(date, 1))}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <div className="bg-white px-4 py-2 rounded-lg shadow-sm border-2 border-gray-200 font-semibold text-gray-900">
+              {format(date, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+            </div>
+            <button
+              onClick={() => setDate(addDays(date, 1))}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <ChevronRight className="w-5 h-5 text-gray-600" />
+            </button>
+            <button
+              onClick={() => setDate(new Date())}
+              className="ml-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors font-medium"
+            >
+              Hoje
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Visualização Condicional */}
+      {viewMode === 'calendar' ? (
+        <div className="bg-white rounded-lg shadow p-4" style={{ height: '600px' }}>
+          <Calendar
+            localizer={localizer}
+            events={events}
+            startAccessor="start"
+            endAccessor="end"
+            style={{ height: '100%' }}
+            onSelectEvent={handleSelectEvent}
+            onSelectSlot={handleSelectSlot}
+            selectable={user?.role === 'director'}
+            eventPropGetter={eventStyleGetter}
+            view={view}
+            onView={setView}
+            date={date}
+            onNavigate={setDate}
+            messages={{
+              next: 'Próximo',
+              previous: 'Anterior',
+              today: 'Hoje',
+              month: 'Mês',
+              week: 'Semana',
             day: 'Dia',
             agenda: 'Agenda',
             date: 'Data',
