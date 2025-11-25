@@ -1,0 +1,4385 @@
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { ArrowLeft, Upload, Filter, Plus, MoreVertical, Clock, User, AlertCircle, CheckCircle2, Package as PackageIcon, X, ChevronUp, ChevronDown, RefreshCw } from 'lucide-react';
+import axios from 'axios';
+import { toast } from 'sonner';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api/gestao/marketplaces`;
+
+const STATUS_OPTIONS = [
+  { value: 'Aguardando Produção', label: 'Aguardando Produção', color: '#94A3B8' },
+  { value: 'Em Produção', label: 'Em Produção', color: '#F59E0B' },
+  { value: 'Pronto', label: 'Pronto', color: '#8B5CF6' },
+  { value: 'Embalagem', label: 'Embalagem', color: '#FBBF24' },
+  { value: 'Enviado', label: 'Enviado', color: '#3B82F6' },
+  { value: 'Entregue', label: 'Entregue', color: '#10B981' }
+];
+
+const STATUS_IMPRESSAO_OPTIONS = [
+  { value: 'Aguardando Impressão', label: 'Aguardando Impressão', color: '#94A3B8' },
+  { value: 'Imprimindo', label: 'Imprimindo', color: '#F59E0B' },
+  { value: 'Impresso', label: 'Impresso', color: '#10B981' }
+];
+
+const PRIORIDADE_OPTIONS = ['Baixa', 'Normal', 'Alta', 'Urgente'];
+
+// Cores para Setor
+const SETOR_COLORS = {
+  'Espelho': '#3B82F6',        // Azul
+  'Molduras com Vidro': '#8B5CF6', // Roxo
+  'Molduras': '#EC4899',       // Rosa
+  'Impressão': '#F59E0B',      // Laranja
+  'Expedição': '#10B981',      // Verde
+  'Embalagem': '#6366F1',      // Indigo
+  'Personalizado': '#14B8A6'   // Teal
+};
+
+// Cores para Status Produção
+const STATUS_PRODUCAO_COLORS = {
+  'Aguardando': '#94A3B8',     // Cinza
+  'Em montagem': '#F59E0B',    // Laranja
+  'Imprimindo': '#3B82F6',     // Azul
+  'Impresso': '#10B981',       // Verde
+  'Finalizado': '#10B981'      // Verde (mesmo do Impresso para consistência)
+};
+
+export default function MarketplaceProjetoDetalhes() {
+  const { projetoId } = useParams();
+  const navigate = useNavigate();
+  
+  // States
+  const [statusOptions, setStatusOptions] = useState([]);
+  const [statusImpressaoOptions, setStatusImpressaoOptions] = useState([]);
+  
+  // Tentar pegar context do Outlet (quando usado em /gestao/marketplaces)
+  // Se não existir, usar valores padrão (quando usado em /marketplace/production)
+  let outletContext;
+  try {
+    outletContext = useOutletContext();
+  } catch (e) {
+    outletContext = { lojaAtual: 'fabrica', user: null };
+  }
+  
+  const { lojaAtual = 'fabrica', user = null } = outletContext || {};
+  
+  // Verificar se usuário é admin (director ou manager)
+  const isAdmin = user?.role === 'director' || user?.role === 'manager';
+  
+  // Verificar se usuário pode ver aba Financeiro (apenas director e manager)
+  const canViewFinanceiro = user?.role === 'director' || user?.role === 'manager';
+  
+  // Mensagens de boas-vindas personalizadas por colaborador
+  const getMensagemBoasVindas = () => {
+    const nome = user?.nome || user?.username;
+    
+    // Mensagens específicas para cada colaborador
+    const mensagensPersonalizadas = {
+      'Thalita': {
+        saudacao: `Bem-vinda, Thalita! 📦`,
+        mensagem: 'Cada envio é uma conquista! Você garante que nossos produtos cheguem com segurança e no prazo! 🚀'
+      },
+      'Alex': {
+        saudacao: `Bem-vindo, Alex! 🪞`,
+        mensagem: 'Sua expertise em espelhos ilumina nossos projetos! Cada peça é um reflexo de excelência! ✨'
+      },
+      'Luiz': {
+        saudacao: `Bem-vindo, Luiz! 🖼️`,
+        mensagem: 'Suas molduras são obras de arte! Continue transformando cada projeto em algo especial! 🎨'
+      },
+      'Ronaldo': {
+        saudacao: `Bem-vindo, Ronaldo! 🖼️💎`,
+        mensagem: 'Molduras com vidro são sua marca! Qualidade e proteção em cada detalhe! 🌟'
+      },
+      'Ludmila': {
+        saudacao: `Bem-vinda, Ludmila! 📦`,
+        mensagem: 'A embalagem perfeita é seu talento! Você cuida de cada detalhe até o cliente! 💝'
+      },
+      'Camila': {
+        saudacao: `Bem-vinda, Camila! 🖨️`,
+        mensagem: 'Suas impressões dão vida aos nossos projetos! Continue trazendo cor e qualidade! 🎨'
+      }
+    };
+
+    return mensagensPersonalizadas[nome] || {
+      saudacao: `Bem-vindo(a), ${nome}! 👋`,
+      mensagem: 'Seu trabalho é essencial para nossa equipe! Juntos fazemos a diferença! 💪'
+    };
+  };
+  
+  // Gerar frase motivacional do dia
+  const frasesDoDia = [
+    "Excelência não é um ato, é um hábito. Continue fazendo um ótimo trabalho!",
+    "Cada peça que você produz leva qualidade e dedicação. Parabéns pelo seu trabalho!",
+    "Seu trabalho faz a diferença. Obrigado por sua dedicação!",
+    "Qualidade é resultado de esforço e atenção. Continue assim!",
+    "Juntos construímos excelência. Seu trabalho é fundamental!",
+    "Cada dia é uma oportunidade de fazer melhor. Bom trabalho!",
+    "Orgulhe-se do que você faz. Seu trabalho tem valor!",
+    "A perfeição está nos detalhes. Continue atento(a)!"
+  ];
+  
+  const getFraseAleatoria = () => {
+    const hoje = new Date();
+    const dia = hoje.getDate();
+    return frasesDoDia[dia % frasesDoDia.length];
+  };
+  
+  const [projeto, setProjeto] = useState(null);
+  const [pedidos, setPedidos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filtros, setFiltros] = useState({ 
+    status: '', 
+    atrasado: null, 
+    sku: '', 
+    prazoEnvio: '',
+    dataInicio: '',
+    dataFim: '',
+    setor: '',  // Filtro de Setor (Espelho, Molduras, etc.)
+    statusProducao: ''  // Filtro de Status Produção (Aguardando, Em montagem, etc.)
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [editingPedido, setEditingPedido] = useState(null);
+  const [viewMode, setViewMode] = useState(isAdmin ? 'monday' : 'producao'); // 'kanban', 'list', 'monday' ou 'producao'
+  const [showInlineAdd, setShowInlineAdd] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadFormato, setUploadFormato] = useState('shopee'); // 'shopee' ou 'mercadolivre'
+  const [uploadProgress, setUploadProgress] = useState(false);
+  const [selectedPedidos, setSelectedPedidos] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [ordenacaoData, setOrdenacaoData] = useState('asc'); // 'asc' = próxima primeiro, 'desc' = distante primeiro
+  const [agruparPor, setAgruparPor] = useState(''); // '', 'sku', 'status'
+  const [ordenarPor, setOrdenarPor] = useState('mais_proxima'); // 'mais_proxima', 'mais_antiga'
+  const [filtroTipoEnvio, setFiltroTipoEnvio] = useState('todos'); // 'todos', 'flex', 'correios_pontos', 'coleta'
+  const [batchStatusValue, setBatchStatusValue] = useState('');
+  const [batchImpressaoValue, setBatchImpressaoValue] = useState('');
+  const [batchSetorValue, setBatchSetorValue] = useState('');
+  const [batchStatusProducaoValue, setBatchStatusProducaoValue] = useState('');
+  const [aiAnalysis, setAiAnalysis] = useState({}); // Armazena análises de IA por pedido ID
+  const [analyzingAI, setAnalyzingAI] = useState({}); // Rastreia quais pedidos estão sendo analisados
+  
+  // ⚡ TEMPO REAL - States
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasNewUpdates, setHasNewUpdates] = useState(false);
+  const pedidosRef = useRef(pedidos); // Referência para comparar mudanças
+  const pollingInterval = useRef(null);
+  
+  // 📊 MENUS RECOLHÍVEIS - States para controlar expansão das seções de métricas
+  const [expandedSections, setExpandedSections] = useState({
+    distribuicaoSetor: true,
+    statusProducao: true,
+    statusMontagem: true
+  });
+  
+  const [novaLinhaInline, setNovaLinhaInline] = useState({
+    numero_pedido: '',
+    produto_nome: '',
+    quantidade: 1,
+    sku: '',
+    nome_variacao: '',
+    preco_acordado: 0,
+    opcao_envio: '',
+    data_prevista_envio: '',
+    cliente_nome: '',
+    cliente_contato: '',
+    status: 'Aguardando Produção',
+    prioridade: 'Normal'
+  });
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [novoPedido, setNovoPedido] = useState({
+    // Campos comuns
+    numero_pedido: '',
+    sku: '',
+    cliente_nome: '',
+    cliente_contato: '',
+    produto_nome: '',
+    nome_variacao: '',
+    quantidade: 1,
+    valor_unitario: 0,
+    preco_acordado: 0,
+    valor_total: 0,
+    status: 'Aguardando Produção',
+    prioridade: 'Normal',
+    prazo_entrega: '',
+    responsavel: '',
+    observacoes: '',
+    
+    // Shopee específico
+    taxa_comissao: 0,
+    taxa_servico: 0,
+    valor_liquido: 0,
+    opcao_envio: '',
+    data_prevista_envio: '',
+    
+    // Mercado Livre específico
+    data_venda: '',
+    descricao_status: '',
+    cancelamentos_reembolsos: 0,
+    endereco: '',
+    cidade: '',
+    estado_endereco: '',
+    receita_produtos: 0,
+    tarifa_venda_impostos: 0,
+    tarifas_envio: 0
+  });
+
+  useEffect(() => {
+    fetchDados();
+    fetchStatusCustomizados();
+  }, [projetoId, filtros]);
+
+  // ⚡ TEMPO REAL - Atualizar contador de tempo a cada segundo
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // Forçar re-render para atualizar o contador "há X segundos"
+      setLastUpdate(prev => prev);
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, []);
+
+  // ⚡ TEMPO REAL - Atualização de referência sempre que pedidos mudarem
+  useEffect(() => {
+    pedidosRef.current = pedidos;
+  }, [pedidos]);
+
+  // ⚡ TEMPO REAL - Polling inteligente com detecção de mudanças
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      try {
+        setIsRefreshing(true);
+        const token = localStorage.getItem('token');
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        // Buscar pedidos atualizados
+        let url = `${API}/pedidos?projeto_id=${projetoId}`;
+        if (filtros.status) url += `&status=${filtros.status}`;
+        if (filtros.atrasado !== null) url += `&atrasado=${filtros.atrasado}`;
+        
+        const response = await axios.get(url, { headers });
+        const novosPedidos = response.data || [];
+        
+        // Detectar mudanças comparando com estado anterior
+        const pedidosAnteriores = pedidosRef.current;
+        const mudancasDetectadas = [];
+        
+        novosPedidos.forEach(novoPedido => {
+          const pedidoAntigo = pedidosAnteriores.find(p => p.id === novoPedido.id);
+          
+          if (pedidoAntigo) {
+            // Verificar mudanças em campos importantes
+            if (pedidoAntigo.status !== novoPedido.status) {
+              mudancasDetectadas.push({
+                id: novoPedido.id,
+                numero_pedido: novoPedido.numero_pedido,
+                tipo: 'status',
+                de: pedidoAntigo.status,
+                para: novoPedido.status
+              });
+            }
+            if (pedidoAntigo.status_producao !== novoPedido.status_producao) {
+              mudancasDetectadas.push({
+                id: novoPedido.id,
+                numero_pedido: novoPedido.numero_pedido,
+                tipo: 'setor',
+                de: pedidoAntigo.status_producao,
+                para: novoPedido.status_producao
+              });
+            }
+            if (pedidoAntigo.status_impressao !== novoPedido.status_impressao) {
+              mudancasDetectadas.push({
+                id: novoPedido.id,
+                numero_pedido: novoPedido.numero_pedido,
+                tipo: 'impressao',
+                de: pedidoAntigo.status_impressao,
+                para: novoPedido.status_impressao
+              });
+            }
+          }
+        });
+        
+        // Detectar novos pedidos
+        const novosIds = novosPedidos.map(p => p.id);
+        const antigosIds = pedidosAnteriores.map(p => p.id);
+        const pedidosNovos = novosPedidos.filter(p => !antigosIds.includes(p.id));
+        
+        // Atualizar estado
+        setPedidos(novosPedidos);
+        setLastUpdate(new Date());
+        
+        // Mostrar notificações apenas se houver mudanças
+        if (mudancasDetectadas.length > 0) {
+          setHasNewUpdates(true);
+          
+          // Agrupar mudanças por pedido
+          const mudancasPorPedido = {};
+          mudancasDetectadas.forEach(m => {
+            if (!mudancasPorPedido[m.numero_pedido]) {
+              mudancasPorPedido[m.numero_pedido] = [];
+            }
+            mudancasPorPedido[m.numero_pedido].push(m);
+          });
+          
+          // Notificar mudanças (máximo 3 notificações para não poluir)
+          Object.entries(mudancasPorPedido).slice(0, 3).forEach(([numeroPedido, mudancas]) => {
+            const descricoes = mudancas.map(m => {
+              if (m.tipo === 'status') return `Status: ${m.para}`;
+              if (m.tipo === 'setor') return `Setor: ${m.para}`;
+              if (m.tipo === 'impressao') return `Impressão: ${m.para}`;
+              return '';
+            }).filter(Boolean).join(', ');
+            
+            toast.info(`🔄 Pedido ${numeroPedido} atualizado: ${descricoes}`, {
+              duration: 4000
+            });
+          });
+          
+          if (Object.keys(mudancasPorPedido).length > 3) {
+            toast.info(`📊 +${Object.keys(mudancasPorPedido).length - 3} pedidos também foram atualizados`, {
+              duration: 3000
+            });
+          }
+          
+          // Limpar flag após 3 segundos
+          setTimeout(() => setHasNewUpdates(false), 3000);
+        }
+        
+        // Notificar novos pedidos
+        if (pedidosNovos.length > 0) {
+          toast.success(`✨ ${pedidosNovos.length} novo(s) pedido(s) adicionado(s)!`, {
+            duration: 4000
+          });
+        }
+        
+      } catch (error) {
+        console.error('Erro no polling:', error);
+      } finally {
+        setIsRefreshing(false);
+      }
+    }, 5000); // 5 segundos
+    
+    pollingInterval.current = intervalId;
+
+    // Limpar interval ao desmontar
+    return () => {
+      if (pollingInterval.current) {
+        clearInterval(pollingInterval.current);
+      }
+    };
+  }, [projetoId, filtros]);
+
+  const fetchStatusCustomizados = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const [geralRes, impressaoRes] = await Promise.all([
+        axios.get(`${API}/status?tipo=geral`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API}/status?tipo=impressao`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      
+      // Converter para formato esperado
+      const geralFormatado = geralRes.data.map(s => ({
+        value: s.label,
+        label: s.label,
+        color: s.cor
+      }));
+      
+      const impressaoFormatado = impressaoRes.data.map(s => ({
+        value: s.label,
+        label: s.label,
+        color: s.cor
+      }));
+      
+      setStatusOptions(geralFormatado);
+      setStatusImpressaoOptions(impressaoFormatado);
+    } catch (error) {
+      console.error('Erro ao buscar status customizados:', error);
+    }
+  };
+
+  const fetchDados = async (showLoading = true) => {
+    try {
+      if (showLoading) {
+        setLoading(true);
+      }
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Buscar projeto
+      const projetosRes = await axios.get(`${API}/projetos`, { headers });
+      const projetoEncontrado = projetosRes.data.find(p => p.id === projetoId);
+      setProjeto(projetoEncontrado);
+
+      // Buscar pedidos
+      let url = `${API}/pedidos?projeto_id=${projetoId}`;
+      if (filtros.status) url += `&status=${filtros.status}`;
+      if (filtros.atrasado !== null) url += `&atrasado=${filtros.atrasado}`;
+      
+      const pedidosRes = await axios.get(url, { headers });
+      setPedidos(pedidosRes.data || []);
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error);
+      if (showLoading) {
+        toast.error('Erro ao carregar dados do projeto');
+      }
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleStatusChange = async (pedidoId, novoStatus) => {
+    try {
+      const token = localStorage.getItem('token');
+      const pedido = pedidos.find(p => p.id === pedidoId);
+      
+      await axios.put(
+        `${API}/pedidos/${pedidoId}`,
+        { ...pedido, status: novoStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Status atualizado!');
+      fetchDados();
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      toast.error('Erro ao atualizar status');
+    }
+  };
+
+  const handleUploadPlanilha = () => {
+    // Detectar automaticamente a plataforma do projeto
+    if (projeto?.plataforma) {
+      const plat = projeto.plataforma.toLowerCase();
+      if (plat === 'shopee') {
+        setUploadFormato('shopee');
+      } else if (plat === 'mercado livre' || plat === 'mercadolivre') {
+        setUploadFormato('mercadolivre');
+      }
+    }
+    setShowUploadModal(true);
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validar tipo de arquivo
+      const allowedTypes = ['.xlsx', '.xls', '.csv'];
+      const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+      
+      if (!allowedTypes.includes(fileExt)) {
+        toast.error('Formato de arquivo inválido. Use Excel (.xlsx, .xls) ou CSV (.csv)');
+        return;
+      }
+      
+      setUploadFile(file);
+    }
+  };
+
+  const handleConfirmarUpload = async () => {
+    if (!uploadFile) {
+      toast.error('Selecione um arquivo primeiro');
+      return;
+    }
+    
+    try {
+      setUploadProgress(true);
+      
+      // Fechar modal IMEDIATAMENTE
+      setShowUploadModal(false);
+      
+      // Colocar em modo loading ANTES de fazer qualquer operação
+      setLoading(true);
+      
+      // Aguardar modal fechar completamente
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      const token = localStorage.getItem('token');
+      
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      
+      const response = await axios.post(
+        `${API}/pedidos/upload-planilha?projeto_id=${projetoId}&formato=${uploadFormato}`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      
+      // Processar resposta
+      const data = response.data;
+      
+      // Limpar arquivos
+      setUploadFile(null);
+      setUploadFormato('shopee');
+      
+      // Mostrar mensagens de sucesso
+      toast.success(data.message);
+      
+      if (data.total_duplicados > 0) {
+        toast.info(`${data.total_duplicados} pedidos duplicados foram ignorados`, {
+          duration: 5000
+        });
+      }
+      
+      // Aguardar um pouco antes de recarregar dados
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Buscar novos dados (fetchDados já limpa o estado antes de buscar)
+      await fetchDados();
+      
+    } catch (error) {
+      console.error('Erro ao fazer upload:', error);
+      toast.error(error.response?.data?.detail || 'Erro ao processar planilha');
+      
+      // Em caso de erro, recarregar dados
+      await fetchDados();
+      
+    } finally {
+      setUploadProgress(false);
+      setLoading(false);
+    }
+  };
+
+  const handleAddPedido = async () => {
+    try {
+      // Validações básicas
+      if (!novoPedido.numero_pedido || !novoPedido.cliente_nome || !novoPedido.produto_nome || !novoPedido.sku) {
+        toast.error('Preencha os campos obrigatórios: Número do Pedido, SKU, Nome do Produto e Cliente');
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      
+      // Calcular valores
+      const valorTotal = novoPedido.quantidade * novoPedido.preco_acordado;
+      
+      // Calcular taxas e valor líquido para Shopee
+      let valorTaxaComissao = 0;
+      let valorTaxaServico = 0;
+      let valorLiquido = valorTotal;
+      
+      if (projeto.plataforma === 'shopee') {
+        valorTaxaComissao = valorTotal * (novoPedido.taxa_comissao / 100);
+        valorTaxaServico = valorTotal * (novoPedido.taxa_servico / 100);
+        valorLiquido = valorTotal - valorTaxaComissao - valorTaxaServico;
+      }
+      
+      // Converter datas para ISO
+      const prazoEntrega = novoPedido.prazo_entrega ? 
+        new Date(novoPedido.prazo_entrega).toISOString() : 
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const dataPrevistaEnvio = novoPedido.data_prevista_envio ? 
+        new Date(novoPedido.data_prevista_envio).toISOString() : null;
+      
+      // Detectar setor automaticamente baseado no SKU
+      let statusProducao = 'Impressão'; // Default
+      if (novoPedido.sku) {
+        const skuUpper = novoPedido.sku.toUpperCase();
+        if (skuUpper.includes('ESPELHO') || skuUpper.includes('LED') || skuUpper.includes('ESP')) {
+          statusProducao = 'Espelho';
+        } else if (skuUpper.includes('VIDRO') || skuUpper.includes('CV') || skuUpper.includes('MF') || skuUpper.includes('MD') || skuUpper.includes('CX')) {
+          statusProducao = 'Molduras com Vidro';
+        } else if (skuUpper.includes('MOLDURA') || skuUpper.includes('MM') || skuUpper.includes('MB') || skuUpper.includes('MP')) {
+          statusProducao = 'Molduras';
+        } else if (skuUpper.includes('PD') || skuUpper.includes('PRINT')) {
+          statusProducao = 'Impressão';
+        }
+      }
+      
+      const pedidoData = {
+        // Campos base
+        projeto_id: projetoId,
+        plataforma: projeto.plataforma,
+        numero_pedido: novoPedido.numero_pedido,
+        sku: novoPedido.sku,
+        numero_referencia_sku: novoPedido.sku,
+        
+        // Produto
+        produto_nome: novoPedido.produto_nome,
+        nome_variacao: novoPedido.nome_variacao || '',
+        
+        // Cliente
+        cliente_nome: novoPedido.cliente_nome,
+        cliente_contato: novoPedido.cliente_contato || '',
+        
+        // Valores
+        quantidade: novoPedido.quantidade,
+        valor_unitario: novoPedido.preco_acordado,
+        preco_acordado: novoPedido.preco_acordado,
+        valor_total: valorTotal,
+        
+        // Campos Shopee
+        ...(projeto.plataforma === 'shopee' && {
+          taxa_comissao: novoPedido.taxa_comissao,
+          taxa_servico: novoPedido.taxa_servico,
+          valor_taxa_comissao: valorTaxaComissao,
+          valor_taxa_servico: valorTaxaServico,
+          valor_liquido: valorLiquido,
+          opcao_envio: novoPedido.opcao_envio || '',
+          data_prevista_envio: dataPrevistaEnvio
+        }),
+        
+        // Campos Mercado Livre
+        ...(projeto.plataforma === 'mercadolivre' && {
+          data_venda: novoPedido.data_venda || new Date().toISOString().split('T')[0],
+          descricao_status: novoPedido.descricao_status || '',
+          cancelamentos_reembolsos: novoPedido.cancelamentos_reembolsos || 0,
+          endereco: novoPedido.endereco || '',
+          cidade: novoPedido.cidade || '',
+          estado_endereco: novoPedido.estado_endereco || '',
+          uf: novoPedido.estado_endereco || '',
+          receita_produtos: novoPedido.receita_produtos || novoPedido.preco_acordado,
+          tarifa_venda_impostos: novoPedido.tarifa_venda_impostos || 0,
+          tarifas_envio: novoPedido.tarifas_envio || 0,
+          opcao_envio: novoPedido.opcao_envio || '',
+          valor_liquido: novoPedido.receita_produtos - novoPedido.tarifa_venda_impostos - novoPedido.tarifas_envio
+        }),
+        
+        // Status
+        status: 'Aguardando Produção',
+        status_cor: '#94A3B8',
+        status_producao: statusProducao,
+        status_logistica: 'Aguardando',
+        status_montagem: 'Aguardando Montagem',
+        
+        // Controle
+        prioridade: 'Normal',
+        prazo_entrega: prazoEntrega,
+        responsavel: novoPedido.responsavel || '',
+        observacoes: (novoPedido.observacoes || '') + ' [Pedido criado manualmente]',
+        loja_id: lojaAtual || 'fabrica'
+      };
+      
+      await axios.post(
+        `${API}/pedidos`,
+        pedidoData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('✅ Pedido criado com sucesso!');
+      setShowAddModal(false);
+      
+      // Resetar form
+      setNovoPedido({
+        numero_pedido: '',
+        sku: '',
+        cliente_nome: '',
+        cliente_contato: '',
+        produto_nome: '',
+        nome_variacao: '',
+        quantidade: 1,
+        valor_unitario: 0,
+        preco_acordado: 0,
+        valor_total: 0,
+        status: 'Aguardando Produção',
+        prioridade: 'Normal',
+        prazo_entrega: '',
+        responsavel: '',
+        observacoes: '',
+        taxa_comissao: 0,
+        taxa_servico: 0,
+        valor_liquido: 0,
+        opcao_envio: '',
+        data_prevista_envio: '',
+        data_venda: '',
+        descricao_status: '',
+        cancelamentos_reembolsos: 0,
+        endereco: '',
+        cidade: '',
+        estado_endereco: '',
+        receita_produtos: 0,
+        tarifa_venda_impostos: 0,
+        tarifas_envio: 0
+      });
+      
+      fetchDados();
+    } catch (error) {
+      console.error('Erro ao criar pedido:', error);
+      toast.error(error.response?.data?.detail || 'Erro ao criar pedido');
+    }
+  };
+
+  const handleUpdatePedido = async (pedidoId, campo, valor) => {
+    try {
+      const token = localStorage.getItem('token');
+      const pedido = pedidos.find(p => p.id === pedidoId);
+      
+      if (!pedido) return;
+      
+      const pedidoAtualizado = {
+        ...pedido,
+        [campo]: valor,
+        updated_at: new Date().toISOString()
+      };
+      
+      await axios.put(
+        `${API}/pedidos/${pedidoId}`,
+        pedidoAtualizado,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Atualizar local
+      setPedidos(pedidos.map(p => p.id === pedidoId ? pedidoAtualizado : p));
+      
+      // 🎓 APRENDIZADO: Se usuário mudou manualmente o setor, registrar feedback para IA aprender
+      if (campo === 'status_producao' && pedido.status_producao !== valor) {
+        const sku = pedido.numero_referencia_sku || pedido.sku;
+        if (sku) {
+          try {
+            await axios.post(
+              `${API}/pedidos/registrar-feedback-sku`,
+              {
+                sku: sku,
+                setor_original: pedido.status_producao,
+                setor_correto: valor,
+                pedido_id: pedidoId
+              },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            console.log(`✅ Feedback registrado: SKU "${sku}" → "${valor}"`);
+            // Toast sutil para não incomodar
+            toast.success('✅ IA aprendeu com sua classificação!', { duration: 2000 });
+          } catch (error) {
+            console.error('Erro ao registrar feedback:', error);
+            // Não mostrar erro ao usuário para não atrapalhar o fluxo
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('Erro ao atualizar pedido:', error);
+      toast.error('Erro ao atualizar pedido');
+    }
+  };
+
+  const handleAddInline = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Validar campos obrigatórios
+      if (!novaLinhaInline.numero_pedido) {
+        toast.error('Número do pedido é obrigatório');
+        return;
+      }
+      
+      // Converter data para ISO se fornecida
+      const dataPrevistaEnvio = novaLinhaInline.data_prevista_envio ? 
+        new Date(novaLinhaInline.data_prevista_envio).toISOString() : 
+        null;
+      
+      const prazoEntrega = novaLinhaInline.data_prevista_envio ? 
+        new Date(novaLinhaInline.data_prevista_envio).toISOString() : 
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const pedidoData = {
+        numero_pedido: novaLinhaInline.numero_pedido,
+        sku: novaLinhaInline.sku,
+        nome_variacao: novaLinhaInline.nome_variacao,
+        produto_nome: novaLinhaInline.produto_nome || novaLinhaInline.numero_pedido,
+        cliente_nome: novaLinhaInline.cliente_nome,
+        cliente_contato: novaLinhaInline.cliente_contato,
+        quantidade: novaLinhaInline.quantidade,
+        preco_acordado: novaLinhaInline.preco_acordado || 0,
+        valor_unitario: novaLinhaInline.preco_acordado || 0,
+        valor_total: (novaLinhaInline.preco_acordado || 0) * novaLinhaInline.quantidade,
+        opcao_envio: novaLinhaInline.opcao_envio,
+        data_prevista_envio: dataPrevistaEnvio,
+        status: novaLinhaInline.status,
+        prioridade: novaLinhaInline.prioridade,
+        prazo_entrega: prazoEntrega,
+        projeto_id: projetoId,
+        plataforma: projeto.plataforma,
+        loja_id: lojaAtual
+      };
+      
+      await axios.post(
+        `${API}/pedidos`,
+        pedidoData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success('Pedido adicionado!');
+      setShowInlineAdd(false);
+      setNovaLinhaInline({
+        numero_pedido: '',
+        produto_nome: '',
+        quantidade: 1,
+        sku: '',
+        nome_variacao: '',
+        preco_acordado: 0,
+        opcao_envio: '',
+        data_prevista_envio: '',
+        cliente_nome: '',
+        cliente_contato: '',
+        status: 'Aguardando Produção',
+        prioridade: 'Normal'
+      });
+      fetchDados();
+    } catch (error) {
+      console.error('Erro ao adicionar pedido:', error);
+      toast.error('Erro ao adicionar pedido');
+    }
+  };
+
+  // Funções de Checkbox
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedPedidos([]);
+    } else {
+      // Selecionar apenas os pedidos FILTRADOS que estão visíveis na tela
+      setSelectedPedidos(pedidosFiltrados.map(p => p.id));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectPedido = (pedidoId) => {
+    if (selectedPedidos.includes(pedidoId)) {
+      setSelectedPedidos(selectedPedidos.filter(id => id !== pedidoId));
+      setSelectAll(false);
+    } else {
+      const newSelected = [...selectedPedidos, pedidoId];
+      setSelectedPedidos(newSelected);
+      // Verificar se todos os pedidos FILTRADOS estão selecionados
+      setSelectAll(newSelected.length === pedidosFiltrados.length);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedPedidos.length === 0) {
+      toast.error('Selecione pelo menos um pedido para deletar');
+      return;
+    }
+
+    if (!window.confirm(`Tem certeza que deseja excluir ${selectedPedidos.length} pedido(s)?`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${API}/pedidos/delete-many`,
+        selectedPedidos,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success(`${selectedPedidos.length} pedido(s) excluído(s) com sucesso!`);
+      setSelectedPedidos([]);
+      setSelectAll(false);
+      fetchDados();
+    } catch (error) {
+      console.error('Erro ao deletar pedidos:', error);
+      toast.error('Erro ao deletar pedidos');
+    }
+  };
+
+  // Atualizar status em lote
+  const handleUpdateStatusBatch = async (campo, valor) => {
+    if (selectedPedidos.length === 0) {
+      toast.error('Selecione pelo menos um pedido');
+      return;
+    }
+
+    if (!valor) {
+      toast.error('Selecione um valor para atualizar');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      console.log(`Atualizando ${selectedPedidos.length} pedidos - ${campo}: ${valor}`);
+      
+      // Atualizar cada pedido selecionado
+      await Promise.all(
+        selectedPedidos.map(async (pedidoId) => {
+          // Buscar o pedido completo primeiro
+          const response = await axios.get(`${API}/pedidos/${pedidoId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const pedido = response.data;
+          
+          // Atualizar o campo específico
+          pedido[campo] = valor;
+          
+          // Enviar atualização completa
+          return axios.put(
+            `${API}/pedidos/${pedidoId}`,
+            pedido,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        })
+      );
+
+      toast.success(`${selectedPedidos.length} pedido(s) atualizado(s) com sucesso!`);
+      
+      // Resetar estados
+      setSelectedPedidos([]);
+      setSelectAll(false);
+      setBatchStatusValue('');
+      setBatchImpressaoValue('');
+      setBatchSetorValue('');
+      setBatchStatusProducaoValue('');
+      
+      fetchDados();
+    } catch (error) {
+      console.error('Erro ao atualizar pedidos:', error);
+      
+      // Tratar erro de forma segura
+      let errorMessage = 'Erro ao atualizar pedidos';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.detail) {
+          if (typeof error.response.data.detail === 'string') {
+            errorMessage = error.response.data.detail;
+          } else if (Array.isArray(error.response.data.detail)) {
+            errorMessage = error.response.data.detail.map(e => e.msg || JSON.stringify(e)).join(', ');
+          } else {
+            errorMessage = JSON.stringify(error.response.data.detail);
+          }
+        }
+      }
+      
+      toast.error(errorMessage);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('pt-BR');
+    } catch {
+      return '-';
+    }
+  };
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+  };
+
+  const getPrioridadeColor = (prioridade) => {
+    const colors = {
+      'Baixa': 'bg-gray-100 text-gray-800',
+      'Normal': 'bg-blue-100 text-blue-800',
+      'Alta': 'bg-orange-100 text-orange-800',
+      'Urgente': 'bg-red-100 text-red-800'
+    };
+    return colors[prioridade] || 'bg-gray-100 text-gray-800';
+  };
+
+  // Função para analisar SKU com IA
+  const handleAnalisarSKU = async (pedido) => {
+    const sku = pedido.numero_referencia_sku || pedido.sku;
+    
+    if (!sku) {
+      toast.error('SKU não encontrado para análise');
+      return;
+    }
+
+    // Marcar como analisando
+    setAnalyzingAI(prev => ({ ...prev, [pedido.id]: true }));
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `${API}/pedidos/analisar-sku`,
+        { sku: sku },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Armazenar análise
+      setAiAnalysis(prev => ({
+        ...prev,
+        [pedido.id]: {
+          setor_sugerido: response.data.setor_sugerido,
+          confianca: response.data.confianca,
+          razao: response.data.razao
+        }
+      }));
+
+      toast.success(`Análise concluída! Confiança: ${response.data.confianca}%`);
+    } catch (error) {
+      console.error('Erro ao analisar SKU:', error);
+      toast.error('Erro ao analisar SKU com IA');
+    } finally {
+      // Remover estado de análise
+      setAnalyzingAI(prev => {
+        const newState = { ...prev };
+        delete newState[pedido.id];
+        return newState;
+      });
+    }
+  };
+
+  // Aplicar sugestão da IA
+  const handleAplicarSugestaoIA = async (pedido) => {
+    const analise = aiAnalysis[pedido.id];
+    if (!analise) {
+      toast.error('Nenhuma análise disponível');
+      return;
+    }
+
+    try {
+      await handleUpdatePedido(pedido.id, 'status_producao', analise.setor_sugerido);
+      toast.success(`Setor atualizado para: ${analise.setor_sugerido}`);
+      
+      // Limpar análise após aplicar
+      setAiAnalysis(prev => {
+        const newState = { ...prev };
+        delete newState[pedido.id];
+        return newState;
+      });
+    } catch (error) {
+      console.error('Erro ao aplicar sugestão:', error);
+      toast.error('Erro ao aplicar sugestão');
+    }
+  };
+
+  // 📊 TOGGLE SECTIONS - Expandir/Recolher seções de métricas
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  // 📄 GERAÇÃO DE PDF POR SETOR
+  const gerarPDFSetor = (nomeSetor) => {
+    try {
+      // Filtrar pedidos do setor
+      const pedidosDoSetor = pedidos.filter(p => p.status_producao === nomeSetor);
+      
+      if (pedidosDoSetor.length === 0) {
+        toast.error(`Nenhum pedido encontrado para o setor ${nomeSetor}`);
+        return;
+      }
+      
+      // Agrupar pedidos por SKU
+      const pedidosPorSKU = {};
+      pedidosDoSetor.forEach(pedido => {
+        const sku = pedido.sku || pedido.numero_referencia_sku || 'SEM SKU';
+        if (!pedidosPorSKU[sku]) {
+          pedidosPorSKU[sku] = {
+            sku: sku,
+            variacao: pedido.nome_variacao || '-',
+            pedidos: [],
+            quantidadeTotal: 0
+          };
+        }
+        pedidosPorSKU[sku].pedidos.push(pedido);
+        pedidosPorSKU[sku].quantidadeTotal += parseInt(pedido.quantidade) || 0;
+      });
+      
+      // Calcular totais antecipadamente para usar em vários lugares
+      const totalPedidos = pedidosDoSetor.length;
+      const totalQuantidade = pedidosDoSetor.reduce((sum, p) => sum + (parseInt(p.quantidade) || 0), 0);
+      const totalSKUs = Object.keys(pedidosPorSKU).length;
+      const aguardando = pedidosDoSetor.filter(p => p.status_logistica === 'Aguardando').length;
+      const emMontagem = pedidosDoSetor.filter(p => p.status_logistica === 'Em montagem').length;
+      const imprimindo = pedidosDoSetor.filter(p => p.status_logistica === 'Imprimindo').length;
+      const impresso = pedidosDoSetor.filter(p => p.status_logistica === 'Impresso').length;
+      
+      const doc = new jsPDF('l', 'mm', 'a4'); // Landscape para mais espaço
+      
+      // CABEÇALHO
+      doc.setFontSize(20);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Lider Hub', 20, 20);
+      
+      doc.setFontSize(14);
+      doc.text(`Ordem de Produção - Setor: ${nomeSetor}`, 20, 28);
+      
+      doc.setFontSize(10);
+      doc.text(`Data de Geração: ${new Date().toLocaleDateString('pt-BR')}`, 20, 35);
+      doc.text(`Total de Pedidos: ${pedidosDoSetor.length}`, 20, 40);
+      
+      // TABELA AGRUPADA POR SKU
+      const tableData = Object.values(pedidosPorSKU).map(grupo => [
+        grupo.sku,
+        grupo.variacao,
+        grupo.pedidos.length,
+        grupo.quantidadeTotal,
+        grupo.pedidos.map(p => p.numero_pedido || p.id_venda || p.n_venda).filter(Boolean).join(', ')
+      ]);
+      
+      autoTable(doc, {
+        startY: 45,
+        head: [['SKU', 'Variação', 'Qtd Pedidos', 'Qtd Total Peças', 'IDs dos Pedidos']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 10 },
+        bodyStyles: { fontSize: 9 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        margin: { left: 20, right: 20 },
+        columnStyles: {
+          0: { cellWidth: 40 },
+          1: { cellWidth: 50 },
+          2: { cellWidth: 25, halign: 'center' },
+          3: { cellWidth: 30, halign: 'center' },
+          4: { cellWidth: 'auto' }
+        }
+      });
+      
+      // TOTAIS DO SETOR
+      let yPosition = doc.lastAutoTable.finalY + 15;
+      
+      if (yPosition > 170) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.setTextColor(79, 70, 229);
+      doc.text('Resumo do Setor', 20, yPosition);
+      
+      yPosition += 8;
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      
+      doc.text(`Total de SKUs diferentes: ${totalSKUs}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`Total de Pedidos: ${totalPedidos}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`Total de Peças: ${totalQuantidade}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`Aguardando: ${aguardando} | Em Montagem: ${emMontagem} | Imprimindo: ${imprimindo} | Impresso: ${impresso}`, 25, yPosition);
+      
+      // Listar todos os SKUs com quantidades em TABELA
+      yPosition = doc.lastAutoTable.finalY + 15;
+      
+      if (yPosition > 170) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.setTextColor(79, 70, 229);
+      doc.text('Lista de SKUs e Quantidades:', 20, yPosition);
+      
+      yPosition += 5;
+      
+      // Ordenar SKUs por quantidade (maior para menor)
+      const skusOrdenados = Object.values(pedidosPorSKU).sort((a, b) => b.quantidadeTotal - a.quantidadeTotal);
+      
+      // Criar dados da tabela de SKUs
+      const skuTableData = skusOrdenados.map((grupo, index) => [
+        index + 1,
+        grupo.sku,
+        grupo.quantidadeTotal,
+        grupo.pedidos.length
+      ]);
+      
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['#', 'SKU', 'Quantidade Total', 'Nº Pedidos']],
+        body: skuTableData,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [79, 70, 229], 
+          textColor: 255, 
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        bodyStyles: { 
+          fontSize: 9,
+          cellPadding: 3
+        },
+        columnStyles: {
+          0: { cellWidth: 15, halign: 'center' },
+          1: { cellWidth: 'auto', halign: 'left' },
+          2: { cellWidth: 35, halign: 'center', fontStyle: 'bold', textColor: [79, 70, 229] },
+          3: { cellWidth: 30, halign: 'center' }
+        },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        margin: { left: 20, right: 20 }
+      });
+      
+      // TOTAIS DO SETOR (movido para depois da tabela de SKUs)
+      yPosition = doc.lastAutoTable.finalY + 15;
+      
+      if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.setTextColor(79, 70, 229);
+      doc.text('Resumo Geral:', 20, yPosition);
+      
+      yPosition += 8;
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      
+      doc.text(`Total de SKUs diferentes: ${totalSKUs}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`Total de Pedidos: ${totalPedidos}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`Total de Peças: ${totalQuantidade}`, 25, yPosition);
+      yPosition += 8;
+      doc.setFontSize(9);
+      doc.text(`Status: Aguardando (${aguardando}) | Em Montagem (${emMontagem}) | Imprimindo (${imprimindo}) | Impresso (${impresso})`, 25, yPosition);
+      
+      // Salvar PDF
+      const nomeArquivo = `ordem_producao_${nomeSetor.replace(/ /g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(nomeArquivo);
+      
+      toast.success(`PDF gerado com sucesso: ${nomeArquivo}`);
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF do setor');
+    }
+  };
+
+  // Função de filtragem de pedidos
+  const pedidosFiltrados = pedidos.filter(pedido => {
+    // 🔍 BUSCA UNIVERSAL - ID pedido, Nº venda, Nome cliente, SKU, Tipo envio
+    if (filtros.busca) {
+      const termoBusca = filtros.busca.toLowerCase();
+      const idPedido = (pedido.numero_pedido || '').toLowerCase();
+      const nVenda = (pedido.n_venda || pedido.id_venda || '').toLowerCase();
+      const nomeCliente = (pedido.cliente_nome || '').toLowerCase();
+      const sku = (pedido.sku || pedido.numero_referencia_sku || '').toLowerCase();
+      const tipoEnvio = (pedido.tipo_envio || pedido.opcao_envio || '').toLowerCase();
+      
+      const encontrou = 
+        idPedido.includes(termoBusca) ||
+        nVenda.includes(termoBusca) ||
+        nomeCliente.includes(termoBusca) ||
+        sku.includes(termoBusca) ||
+        tipoEnvio.includes(termoBusca);
+      
+      if (!encontrou) {
+        return false;
+      }
+    }
+    
+    // Filtro de Setor
+    if (filtros.setor && pedido.status_producao !== filtros.setor) {
+      return false;
+    }
+    
+    // Filtro de Status Produção
+    if (filtros.status_producao && pedido.status_logistica !== filtros.status_producao) {
+      return false;
+    }
+    
+    // Filtro de Status Montagem
+    if (filtros.status_montagem && pedido.status_montagem !== filtros.status_montagem) {
+      return false;
+    }
+    
+    // Filtro de Status
+    if (filtros.status && pedido.status !== filtros.status) {
+      return false;
+    }
+    
+    // Filtro de Atrasado
+    if (filtros.atrasado !== null) {
+      const isAtrasado = pedido.atrasado === true;
+      if (filtros.atrasado !== isAtrasado) {
+        return false;
+      }
+    }
+    
+    // Filtro de Tipo de Envio
+    if (filtroTipoEnvio !== 'todos') {
+      const tipoEnvio = pedido.tipo_envio || '';
+      if (filtroTipoEnvio === 'flex') {
+        if (!tipoEnvio.toLowerCase().includes('flex')) {
+          return false;
+        }
+      } else if (filtroTipoEnvio === 'correios_pontos') {
+        // Inclui tanto Correios quanto Agência
+        const temCorreios = tipoEnvio.toLowerCase().includes('correios');
+        const temAgencia = tipoEnvio.toLowerCase().includes('agência') || tipoEnvio.toLowerCase().includes('agencia');
+        if (!temCorreios && !temAgencia) {
+          return false;
+        }
+      } else if (filtroTipoEnvio === 'coleta') {
+        if (!tipoEnvio.toLowerCase().includes('coleta')) {
+          return false;
+        }
+      }
+    }
+    
+    // Filtro de SKU
+    if (filtros.sku && pedido.sku) {
+      if (!pedido.sku.toLowerCase().includes(filtros.sku.toLowerCase())) {
+        return false;
+      }
+    }
+    
+    // Filtro de Prazo de Envio
+    if (filtros.prazoEnvio && pedido.data_prevista_envio) {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      
+      const amanha = new Date(hoje);
+      amanha.setDate(amanha.getDate() + 1);
+      
+      const fimSemana = new Date(hoje);
+      fimSemana.setDate(fimSemana.getDate() + 7);
+      
+      const dataPrevista = new Date(pedido.data_prevista_envio);
+      dataPrevista.setHours(0, 0, 0, 0);
+      
+      if (filtros.prazoEnvio === 'hoje') {
+        if (dataPrevista.getTime() !== hoje.getTime()) {
+          return false;
+        }
+      } else if (filtros.prazoEnvio === 'amanha') {
+        if (dataPrevista.getTime() !== amanha.getTime()) {
+          return false;
+        }
+      } else if (filtros.prazoEnvio === 'semana') {
+        if (dataPrevista < hoje || dataPrevista > fimSemana) {
+          return false;
+        }
+      } else if (filtros.prazoEnvio === 'personalizado') {
+        // Filtro de data personalizada
+        if (filtros.dataInicio) {
+          const dataInicio = new Date(filtros.dataInicio);
+          dataInicio.setHours(0, 0, 0, 0);
+          if (dataPrevista < dataInicio) {
+            return false;
+          }
+        }
+        if (filtros.dataFim) {
+          const dataFim = new Date(filtros.dataFim);
+          dataFim.setHours(23, 59, 59, 999);
+          if (dataPrevista > dataFim) {
+            return false;
+          }
+        }
+      }
+    }
+    
+    // Filtro de Setor (campo status_producao no backend)
+    if (filtros.setor) {
+      console.log('🔍 Filtro Setor ATIVO:', filtros.setor);
+      console.log('   Pedido ID:', pedido.id, 'SKU:', pedido.sku, 'status_producao:', pedido.status_producao);
+      if (pedido.status_producao !== filtros.setor) {
+        console.log('   ❌ Pedido REMOVIDO - não corresponde ao filtro');
+        return false;
+      }
+      console.log('   ✅ Pedido MANTIDO - corresponde ao filtro');
+    }
+    
+    // Filtro de Status de Produção (campo status_logistica no backend)
+    if (filtros.statusProducao) {
+      console.log('🔍 Filtro StatusProducao:', filtros.statusProducao, 'Pedido status_logistica:', pedido.status_logistica);
+      if (pedido.status_logistica !== filtros.statusProducao) {
+        return false;
+      }
+    }
+    
+    return true;
+  }).sort((a, b) => {
+    // Ordenação por data prevista de envio baseada no filtro
+    const dataA = a.data_prevista_envio ? new Date(a.data_prevista_envio) : null;
+    const dataB = b.data_prevista_envio ? new Date(b.data_prevista_envio) : null;
+    
+    // Pedidos sem data vão para o final
+    if (!dataA && !dataB) return 0;
+    if (!dataA) return 1;
+    if (!dataB) return -1;
+    
+    // Ordenação baseada no filtro
+    if (ordenarPor === 'mais_proxima') {
+      return dataA - dataB; // Mais próxima primeiro (ascendente)
+    } else {
+      return dataB - dataA; // Mais antiga primeiro (descendente)
+    }
+  });
+
+  // Separar pedidos atuais e antigos (baseado na data prevista de envio)
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  
+  console.log('📊 FILTROS ATIVOS:', filtros);
+  console.log('📦 Total de pedidos:', pedidos.length);
+  console.log('✅ Pedidos após filtros:', pedidosFiltrados.length);
+  
+  const pedidosAtuais = pedidosFiltrados.filter(pedido => {
+    if (!pedido.data_prevista_envio) return true; // Se não tem data, considera atual
+    const dataPrevista = new Date(pedido.data_prevista_envio);
+    dataPrevista.setHours(0, 0, 0, 0);
+    return dataPrevista >= hoje; // Hoje e dias futuros
+  });
+  
+  const pedidosAntigos = pedidosFiltrados.filter(pedido => {
+    if (!pedido.data_prevista_envio) return false; // Se não tem data, não é antigo
+    const dataPrevista = new Date(pedido.data_prevista_envio);
+    dataPrevista.setHours(0, 0, 0, 0);
+    return dataPrevista < hoje; // Dias anteriores
+  });
+
+  // Função de agrupamento - MEMOIZADA para evitar recálculos
+  const pedidosAgrupados = useMemo(() => {
+    // Decidir qual lista de pedidos usar baseado no viewMode
+    const listaPedidos = viewMode === 'pedidos-antigos' ? pedidosAntigos : 
+                         (viewMode === 'producao' || viewMode === 'financeiro') ? pedidosAtuais : 
+                         pedidosFiltrados;
+    
+    if (!agruparPor) {
+      return { 'Todos': listaPedidos };
+    }
+    
+    if (agruparPor === 'sku') {
+      const grupos = {};
+      listaPedidos.forEach(pedido => {
+        const chave = pedido.sku || 'Sem SKU';
+        if (!grupos[chave]) {
+          grupos[chave] = [];
+        }
+        grupos[chave].push(pedido);
+      });
+      return grupos;
+    }
+    
+    if (agruparPor === 'status') {
+      const grupos = {};
+      listaPedidos.forEach(pedido => {
+        const chave = pedido.status || 'Sem Status';
+        if (!grupos[chave]) {
+          grupos[chave] = [];
+        }
+        grupos[chave].push(pedido);
+      });
+      return grupos;
+    }
+    
+    return { 'Todos': listaPedidos };
+  }, [viewMode, pedidosAntigos, pedidosAtuais, pedidosFiltrados, agruparPor]);
+
+  // Agrupar pedidos por status para o Kanban
+  const pedidosPorStatus = STATUS_OPTIONS.reduce((acc, status) => {
+    acc[status.value] = pedidosFiltrados.filter(p => p.status === status.value);
+    return acc;
+  }, {});
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!projeto) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <p className="text-xl text-gray-600 mb-4">Projeto não encontrado</p>
+        <button onClick={() => navigate('/marketplace/production')} className="px-4 py-2 bg-blue-600 text-white rounded">
+          Voltar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900 p-6">
+      {/* Header */}
+      <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-700">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/marketplace/production')}
+              className="p-2 hover:bg-gray-700 rounded-full transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-400" />
+            </button>
+            <div className="flex items-center gap-3">
+              <span className="text-5xl">{projeto.icone}</span>
+              <div>
+                <h1 className="text-3xl font-bold text-white">{projeto.nome}</h1>
+                <p className="text-sm text-gray-400">{projeto.descricao}</p>
+                
+                {/* ⚡ Indicador de Tempo Real */}
+                <div className="flex items-center gap-2 mt-2">
+                  <div className={`flex items-center gap-1 text-xs ${hasNewUpdates ? 'text-green-400' : 'text-gray-500'}`}>
+                    <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    <span>
+                      {isRefreshing ? 'Atualizando...' : `Atualizado há ${Math.floor((new Date() - lastUpdate) / 1000)}s`}
+                    </span>
+                  </div>
+                  {hasNewUpdates && (
+                    <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">
+                      ✨ Novidades
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+                    🔄 Tempo Real Ativo
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-5 h-5" />
+              Adicionar Pedido
+            </button>
+            <button
+              onClick={handleUploadPlanilha}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <Upload className="w-5 h-5" />
+              Upload Planilha
+            </button>
+            {selectedPedidos.length > 0 && (
+              <>
+                <button
+                  onClick={handleDeleteSelected}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  <X className="w-5 h-5" />
+                  Deletar {selectedPedidos.length}
+                </button>
+                
+                {/* Dropdown para Status Geral */}
+                <div className="relative">
+                  <select
+                    value={batchStatusValue}
+                    onChange={(e) => {
+                      const valor = e.target.value;
+                      if (valor) {
+                        setBatchStatusValue(valor);
+                        handleUpdateStatusBatch('status', valor);
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+                  >
+                    <option value="">Mudar Status ({selectedPedidos.length})</option>
+                    {statusOptions.map(s => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Dropdown para Status Impressão */}
+                <div className="relative">
+                  <select
+                    value={batchImpressaoValue}
+                    onChange={(e) => {
+                      const valor = e.target.value;
+                      if (valor) {
+                        setBatchImpressaoValue(valor);
+                        handleUpdateStatusBatch('status_impressao', valor);
+                      }
+                    }}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 cursor-pointer"
+                  >
+                    <option value="">Mudar Impressão ({selectedPedidos.length})</option>
+                    {statusImpressaoOptions.map(s => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Dropdown para Setor (status_producao) */}
+                {(projeto?.plataforma === 'shopee' || projeto?.plataforma === 'mercadolivre') && (
+                  <div className="relative">
+                    <select
+                      value={batchSetorValue || ''}
+                      onChange={(e) => {
+                        const valor = e.target.value;
+                        if (valor) {
+                          setBatchSetorValue(valor);
+                          handleUpdateStatusBatch('status_producao', valor);
+                        }
+                      }}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer"
+                    >
+                      <option value="">Mudar Setor ({selectedPedidos.length})</option>
+                      <option value="Espelho">🪞 Espelho</option>
+                      <option value="Molduras com Vidro">🖼️ Molduras com Vidro</option>
+                      <option value="Molduras">🖼️ Molduras</option>
+                      <option value="Impressão">🖨️ Impressão</option>
+                      <option value="Expedição">📦 Expedição</option>
+                      <option value="Embalagem">📦 Embalagem</option>
+                      <option value="Personalizado">✨ Personalizado</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Dropdown para Status Produção (status_logistica) */}
+                {(projeto?.plataforma === 'shopee' || projeto?.plataforma === 'mercadolivre') && (
+                  <div className="relative">
+                    <select
+                      value={batchStatusProducaoValue || ''}
+                      onChange={(e) => {
+                        const valor = e.target.value;
+                        if (valor) {
+                          setBatchStatusProducaoValue(valor);
+                          handleUpdateStatusBatch('status_logistica', valor);
+                        }
+                      }}
+                      className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 cursor-pointer"
+                    >
+                      <option value="">Mudar Status Prod ({selectedPedidos.length})</option>
+                      <option value="Aguardando">⏳ Aguardando</option>
+                      <option value="Em montagem">🔧 Em montagem</option>
+                      <option value="Imprimindo">🖨️ Imprimindo</option>
+                      <option value="Impresso">✅ Impresso</option>
+                      <option value="Finalizado">✨ Finalizado</option>
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+            >
+              <Filter className="w-5 h-5" />
+              {showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+            </button>
+          </div>
+        </div>
+
+        {/* Banner de Boas-Vindas - Apenas para usuários production */}
+        {user?.role === 'production' && (
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-lg p-6 mt-4 border border-blue-500">
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">👋</div>
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  {getMensagemBoasVindas().saudacao}
+                </h2>
+                <p className="text-blue-100 mt-1">
+                  {getMensagemBoasVindas().mensagem}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Métricas Detalhadas - Mercado Livre */}
+      {projeto?.plataforma === 'mercadolivre' && pedidos.length > 0 && (
+        <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-700">
+          <h2 className="text-xl font-bold text-white mb-4">📊 Métricas de Produção e Envio</h2>
+          
+          {/* Métricas por Setor */}
+          <div className="mb-6">
+            <div 
+              className="flex items-center justify-between cursor-pointer hover:bg-gray-700 p-2 rounded-lg transition-colors"
+              onClick={() => toggleSection('distribuicaoSetor')}
+            >
+              <h3 className="text-lg font-semibold text-gray-300">Distribuição por Setor</h3>
+              {expandedSections.distribuicaoSetor ? (
+                <ChevronUp className="text-gray-400" size={20} />
+              ) : (
+                <ChevronDown className="text-gray-400" size={20} />
+              )}
+            </div>
+            
+            {expandedSections.distribuicaoSetor && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mt-3">
+                {[
+                  { nome: 'Espelho', emoji: '🪞', cor: '#3B82F6' },
+                  { nome: 'Molduras com Vidro', emoji: '🖼️', cor: '#8B5CF6' },
+                  { nome: 'Molduras', emoji: '🖼️', cor: '#EC4899' },
+                  { nome: 'Impressão', emoji: '🖨️', cor: '#F59E0B' },
+                  { nome: 'Expedição', emoji: '🧾', cor: '#10B981' },
+                  { nome: 'Embalagem', emoji: '📦', cor: '#6366F1' },
+                  { nome: 'Personalizado', emoji: '⭐', cor: '#14B8A6' }
+                ].map(setor => {
+                  const count = pedidos.filter(p => p.status_producao === setor.nome).length;
+                  const percentage = pedidos.length > 0 ? ((count / pedidos.length) * 100).toFixed(1) : 0;
+                  return (
+                    <div key={setor.nome} className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">{setor.emoji}</span>
+                        <span className="text-2xl font-bold" style={{ color: setor.cor }}>{count}</span>
+                      </div>
+                      <p className="text-sm text-gray-400">{setor.nome}</p>
+                      <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full" 
+                          style={{ width: `${percentage}%`, backgroundColor: setor.cor }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{percentage}%</p>
+                      {count > 0 && (
+                        <button
+                          onClick={() => gerarPDFSetor(setor.nome)}
+                          className="mt-2 w-full text-xs bg-indigo-600 hover:bg-indigo-700 text-white py-1 px-2 rounded transition-colors"
+                        >
+                          📄 Gerar PDF
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Métricas por Status de Produção */}
+          <div className="mb-6">
+            <div 
+              className="flex items-center justify-between cursor-pointer hover:bg-gray-700 p-2 rounded-lg transition-colors"
+              onClick={() => toggleSection('statusProducao')}
+            >
+              <h3 className="text-lg font-semibold text-gray-300">Status de Produção</h3>
+              {expandedSections.statusProducao ? (
+                <ChevronUp className="text-gray-400" size={20} />
+              ) : (
+                <ChevronDown className="text-gray-400" size={20} />
+              )}
+            </div>
+            
+            {expandedSections.statusProducao && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mt-3">
+                {[
+                  { nome: 'Aguardando', emoji: '⏳', cor: '#94A3B8' },
+                  { nome: 'Em montagem', emoji: '🔧', cor: '#F59E0B' },
+                  { nome: 'Imprimindo', emoji: '🖨️', cor: '#3B82F6' },
+                  { nome: 'Impresso', emoji: '✅', cor: '#10B981' },
+                  { nome: 'Finalizado', emoji: '✨', cor: '#10B981' }
+                ].map(status => {
+                  const count = pedidos.filter(p => p.status_logistica === status.nome).length;
+                  const percentage = pedidos.length > 0 ? ((count / pedidos.length) * 100).toFixed(1) : 0;
+                  return (
+                    <div key={status.nome} className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">{status.emoji}</span>
+                        <span className="text-2xl font-bold" style={{ color: status.cor }}>{count}</span>
+                      </div>
+                      <p className="text-sm text-gray-400">{status.nome}</p>
+                      <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full" 
+                          style={{ width: `${percentage}%`, backgroundColor: status.cor }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{percentage}%</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ⚙️ NOVO: Métricas por Status Montagem */}
+          <div className="mb-6">
+            <div 
+              className="flex items-center justify-between cursor-pointer hover:bg-gray-700 p-2 rounded-lg transition-colors"
+              onClick={() => toggleSection('statusMontagem')}
+            >
+              <h3 className="text-lg font-semibold text-gray-300">⚙️ Status de Montagem</h3>
+              {expandedSections.statusMontagem ? (
+                <ChevronUp className="text-gray-400" size={20} />
+              ) : (
+                <ChevronDown className="text-gray-400" size={20} />
+              )}
+            </div>
+            
+            {expandedSections.statusMontagem && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mt-3">
+                {[
+                  { nome: 'Aguardando Montagem', emoji: '⏳', cor: '#6B7280' },
+                  { nome: 'Em Montagem', emoji: '🔧', cor: '#F59E0B' },
+                  { nome: 'Finalizado', emoji: '✨', cor: '#10B981' }
+                ].map(status => {
+                  const count = pedidos.filter(p => p.status_montagem === status.nome).length;
+                  const percentage = pedidos.length > 0 ? ((count / pedidos.length) * 100).toFixed(1) : 0;
+                  return (
+                    <div 
+                      key={status.nome} 
+                      className={`bg-gray-900 rounded-lg p-4 border border-gray-700 ${
+                        status.nome === 'Finalizado' ? 'ring-2 ring-green-500 ring-opacity-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">{status.emoji}</span>
+                        <span className="text-2xl font-bold" style={{ color: status.cor }}>{count}</span>
+                      </div>
+                      <p className="text-sm text-gray-400">{status.nome}</p>
+                      <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full transition-all duration-500" 
+                          style={{ width: `${percentage}%`, backgroundColor: status.cor }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{percentage}%</p>
+                      {status.nome === 'Finalizado' && count > 0 && (
+                        <div className="mt-2 text-xs text-green-400 font-medium animate-pulse">
+                          🎉 {count} concluído{count > 1 ? 's' : ''}!
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Métricas por Tipo de Envio */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-300 mb-3">Análise de Envios (Formas de Entrega)</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+              {(() => {
+                // Agrupar por forma de entrega real da planilha
+                const enviosMap = {};
+                pedidos.forEach(p => {
+                  const opcao = p.opcao_envio || p.tipo_envio || 'Sem informação';
+                  if (!enviosMap[opcao]) {
+                    enviosMap[opcao] = 0;
+                  }
+                  enviosMap[opcao]++;
+                });
+                
+                // Converter em array e ordenar por quantidade
+                const enviosArray = Object.entries(enviosMap)
+                  .map(([tipo, count]) => ({ tipo, count }))
+                  .sort((a, b) => b.count - a.count)
+                  .slice(0, 6); // Mostrar top 6
+                
+                // Definir emojis baseado em keywords
+                const getEmoji = (tipo) => {
+                  const tipoLower = tipo.toLowerCase();
+                  if (tipoLower.includes('correio')) return '📮';
+                  if (tipoLower.includes('flex')) return '📦';
+                  if (tipoLower.includes('full') || tipoLower.includes('completo')) return '🚚';
+                  if (tipoLower.includes('coleta')) return '🏪';
+                  if (tipoLower.includes('agência') || tipoLower.includes('agencia')) return '🏢';
+                  return '📦';
+                };
+                
+                // Cores alternadas
+                const cores = ['#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#6366F1'];
+                
+                return enviosArray.map((envio, index) => {
+                  const percentage = pedidos.length > 0 ? ((envio.count / pedidos.length) * 100).toFixed(1) : 0;
+                  const cor = cores[index % cores.length];
+                  return (
+                    <div key={envio.tipo} className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">{getEmoji(envio.tipo)}</span>
+                        <span className="text-2xl font-bold" style={{ color: cor }}>{envio.count}</span>
+                      </div>
+                      <p className="text-sm text-gray-400 truncate" title={envio.tipo}>{envio.tipo}</p>
+                      <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full" 
+                          style={{ width: `${percentage}%`, backgroundColor: cor }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{percentage}% do total</p>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Métricas Detalhadas - Shopee */}
+      {projeto?.plataforma === 'shopee' && pedidos.length > 0 && (
+        <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-700">
+          <h2 className="text-xl font-bold text-white mb-4">📊 Métricas de Produção - Shopee</h2>
+          
+          {/* Métricas por Setor */}
+          <div className="mb-6">
+            <div 
+              className="flex items-center justify-between cursor-pointer hover:bg-gray-700 p-2 rounded-lg transition-colors"
+              onClick={() => toggleSection('distribuicaoSetor')}
+            >
+              <h3 className="text-lg font-semibold text-gray-300">Distribuição por Setor</h3>
+              {expandedSections.distribuicaoSetor ? (
+                <ChevronUp className="text-gray-400" size={20} />
+              ) : (
+                <ChevronDown className="text-gray-400" size={20} />
+              )}
+            </div>
+            
+            {expandedSections.distribuicaoSetor && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mt-3">
+                {[
+                  { nome: 'Espelho', emoji: '🪞', cor: '#3B82F6' },
+                  { nome: 'Molduras com Vidro', emoji: '🖼️', cor: '#8B5CF6' },
+                  { nome: 'Molduras', emoji: '🖼️', cor: '#EC4899' },
+                  { nome: 'Impressão', emoji: '🖨️', cor: '#F59E0B' },
+                  { nome: 'Expedição', emoji: '🧾', cor: '#10B981' },
+                  { nome: 'Embalagem', emoji: '📦', cor: '#6366F1' },
+                  { nome: 'Personalizado', emoji: '⭐', cor: '#14B8A6' }
+                ].map(setor => {
+                  const count = pedidos.filter(p => p.status_producao === setor.nome).length;
+                  const percentage = pedidos.length > 0 ? ((count / pedidos.length) * 100).toFixed(1) : 0;
+                  return (
+                    <div key={setor.nome} className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">{setor.emoji}</span>
+                        <span className="text-2xl font-bold" style={{ color: setor.cor }}>{count}</span>
+                      </div>
+                      <p className="text-sm text-gray-400">{setor.nome}</p>
+                      <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full" 
+                          style={{ width: `${percentage}%`, backgroundColor: setor.cor }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{percentage}%</p>
+                      {count > 0 && (
+                        <button
+                          onClick={() => gerarPDFSetor(setor.nome)}
+                          className="mt-2 w-full text-xs bg-indigo-600 hover:bg-indigo-700 text-white py-1 px-2 rounded transition-colors"
+                        >
+                          📄 Gerar PDF
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Métricas por Status de Produção */}
+          <div className="mb-6">
+            <div 
+              className="flex items-center justify-between cursor-pointer hover:bg-gray-700 p-2 rounded-lg transition-colors"
+              onClick={() => toggleSection('statusProducao')}
+            >
+              <h3 className="text-lg font-semibold text-gray-300">Status de Produção</h3>
+              {expandedSections.statusProducao ? (
+                <ChevronUp className="text-gray-400" size={20} />
+              ) : (
+                <ChevronDown className="text-gray-400" size={20} />
+              )}
+            </div>
+            
+            {expandedSections.statusProducao && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mt-3">
+                {[
+                  { nome: 'Aguardando', emoji: '⏳', cor: '#94A3B8' },
+                  { nome: 'Em montagem', emoji: '🔧', cor: '#F59E0B' },
+                  { nome: 'Imprimindo', emoji: '🖨️', cor: '#3B82F6' },
+                  { nome: 'Impresso', emoji: '✅', cor: '#10B981' },
+                  { nome: 'Finalizado', emoji: '✨', cor: '#10B981' }
+                ].map(status => {
+                  const count = pedidos.filter(p => p.status_logistica === status.nome).length;
+                  const percentage = pedidos.length > 0 ? ((count / pedidos.length) * 100).toFixed(1) : 0;
+                  return (
+                    <div key={status.nome} className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">{status.emoji}</span>
+                        <span className="text-2xl font-bold" style={{ color: status.cor }}>{count}</span>
+                      </div>
+                      <p className="text-sm text-gray-400">{status.nome}</p>
+                      <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full" 
+                          style={{ width: `${percentage}%`, backgroundColor: status.cor }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{percentage}%</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ⚙️ NOVO: Métricas por Status Montagem - Shopee */}
+          <div>
+            <div 
+              className="flex items-center justify-between cursor-pointer hover:bg-gray-700 p-2 rounded-lg transition-colors"
+              onClick={() => toggleSection('statusMontagem')}
+            >
+              <h3 className="text-lg font-semibold text-gray-300">⚙️ Status de Montagem</h3>
+              {expandedSections.statusMontagem ? (
+                <ChevronUp className="text-gray-400" size={20} />
+              ) : (
+                <ChevronDown className="text-gray-400" size={20} />
+              )}
+            </div>
+            
+            {expandedSections.statusMontagem && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mt-3">
+                {[
+                  { nome: 'Aguardando Montagem', emoji: '⏳', cor: '#6B7280' },
+                  { nome: 'Em Montagem', emoji: '🔧', cor: '#F59E0B' },
+                  { nome: 'Finalizado', emoji: '✨', cor: '#10B981' }
+                ].map(status => {
+                  const count = pedidos.filter(p => p.status_montagem === status.nome).length;
+                  const percentage = pedidos.length > 0 ? ((count / pedidos.length) * 100).toFixed(1) : 0;
+                  return (
+                    <div 
+                      key={status.nome} 
+                      className={`bg-gray-900 rounded-lg p-4 border border-gray-700 ${
+                        status.nome === 'Finalizado' ? 'ring-2 ring-green-500 ring-opacity-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">{status.emoji}</span>
+                        <span className="text-2xl font-bold" style={{ color: status.cor }}>{count}</span>
+                      </div>
+                      <p className="text-sm text-gray-400">{status.nome}</p>
+                      <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full transition-all duration-500" 
+                          style={{ width: `${percentage}%`, backgroundColor: status.cor }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{percentage}%</p>
+                      {status.nome === 'Finalizado' && count > 0 && (
+                        <div className="mt-2 text-xs text-green-400 font-medium animate-pulse">
+                          🎉 {count} concluído{count > 1 ? 's' : ''}!
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Filtros */}
+      {showFilters && (
+        <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
+              <select
+                value={filtros.status}
+                onChange={(e) => setFiltros({ ...filtros, status: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg"
+              >
+                <option value="">Todos</option>
+                {statusOptions.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Situação</label>
+              <select
+                value={filtros.atrasado === null ? '' : filtros.atrasado}
+                onChange={(e) => setFiltros({ ...filtros, atrasado: e.target.value === '' ? null : e.target.value === 'true' })}
+                className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg"
+              >
+                <option value="">Todos</option>
+                <option value="false">No Prazo</option>
+                <option value="true">Atrasados</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">SKU</label>
+              <input
+                type="text"
+                value={filtros.sku}
+                onChange={(e) => setFiltros({ ...filtros, sku: e.target.value })}
+                placeholder="Buscar por SKU..."
+                className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {(projeto?.plataforma === 'mercadolivre' || projeto?.plataforma === 'shopee') && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">🏭 Setor</label>
+                  <select
+                    value={filtros.setor || ''}
+                    onChange={(e) => setFiltros({ ...filtros, setor: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg"
+                  >
+                    <option value="">Todos</option>
+                    <option value="Espelho">🪞 Espelho</option>
+                    <option value="Molduras com Vidro">🖼️ Molduras com Vidro</option>
+                    <option value="Molduras">🖼️ Molduras</option>
+                    <option value="Impressão">🖨️ Impressão</option>
+                    <option value="Expedição">🧾 Expedição</option>
+                    <option value="Embalagem">📦 Embalagem</option>
+                    <option value="Personalizado">⭐ Personalizado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">⚙️ Status Produção</label>
+                  <select
+                    value={filtros.statusProducao || ''}
+                    onChange={(e) => setFiltros({ ...filtros, statusProducao: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg"
+                  >
+                    <option value="">Todos</option>
+                    <option value="Aguardando">⏳ Aguardando</option>
+                    <option value="Em montagem">🔧 Em montagem</option>
+                    <option value="Imprimindo">🖨️ Imprimindo</option>
+                    <option value="Impresso">✅ Impresso</option>
+                    <option value="Finalizado">✨ Finalizado</option>
+                  </select>
+                </div>
+              </>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">🔽 Ordenar por Data</label>
+              <select
+                value={ordenacaoData}
+                onChange={(e) => setOrdenacaoData(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg"
+              >
+                <option value="asc">⬆️ Mais Próxima Primeiro</option>
+                <option value="desc">⬇️ Mais Distante Primeiro</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">📊 Agrupar por</label>
+              <select
+                value={agruparPor}
+                onChange={(e) => setAgruparPor(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg"
+              >
+                <option value="">Sem Agrupamento</option>
+                <option value="sku">🏷️ Agrupar por SKU</option>
+                <option value="status">🔵 Agrupar por Status</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Prazo de Envio</label>
+              <select
+                value={filtros.prazoEnvio}
+                onChange={(e) => {
+                  setFiltros({ ...filtros, prazoEnvio: e.target.value });
+                  if (e.target.value !== 'personalizado') {
+                    setFiltros(prev => ({ ...prev, dataInicio: '', dataFim: '' }));
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg"
+              >
+                <option value="">Todos</option>
+                <option value="hoje">📦 Enviar Hoje</option>
+                <option value="amanha">📅 Enviar Amanhã</option>
+                <option value="semana">📆 Enviar Esta Semana</option>
+                <option value="personalizado">🗓️ Data Personalizada</option>
+              </select>
+            </div>
+            
+            {/* Campos de Data Personalizada */}
+            {filtros.prazoEnvio === 'personalizado' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Data Início</label>
+                  <input
+                    type="date"
+                    value={filtros.dataInicio}
+                    onChange={(e) => setFiltros({ ...filtros, dataInicio: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Data Fim</label>
+                  <input
+                    type="date"
+                    value={filtros.dataFim}
+                    onChange={(e) => setFiltros({ ...filtros, dataFim: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </>
+            )}
+            
+            <div className={`flex items-end ${filtros.prazoEnvio !== 'personalizado' ? 'md:col-span-2' : ''}`}>
+              <button
+                onClick={() => {
+                  setFiltros({ status: '', atrasado: null, sku: '', prazoEnvio: '', dataInicio: '', dataFim: '', setor: '', statusProducao: '' });
+                  setOrdenacaoData('asc');
+                  setAgruparPor('');
+                }}
+                className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+              >
+                Limpar Filtros
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle View Mode */}
+      <div className="flex justify-end mb-4">
+        <div className="bg-gray-800 rounded-lg shadow-lg p-1 inline-flex border border-gray-700">
+          {isAdmin && (
+            <button
+              onClick={() => setViewMode('monday')}
+              className={`px-4 py-2 rounded-lg ${viewMode === 'monday' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+            >
+              Monday
+            </button>
+          )}
+          <button
+            onClick={() => setViewMode('producao')}
+            className={`px-4 py-2 rounded-lg ${viewMode === 'producao' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+          >
+            Produção
+          </button>
+          <button
+            onClick={() => setViewMode('pedidos-antigos')}
+            className={`px-4 py-2 rounded-lg ${viewMode === 'pedidos-antigos' ? 'bg-yellow-600 text-white' : 'text-gray-400'}`}
+          >
+            📦 Pedidos Antigos
+          </button>
+          {/* Aba Financeiro para Shopee e Mercado Livre - APENAS para director e manager */}
+          {canViewFinanceiro && (projeto?.plataforma === 'shopee' || projeto?.plataforma === 'mercadolivre') && (
+            <button
+              onClick={() => setViewMode('financeiro')}
+              className={`px-4 py-2 rounded-lg ${viewMode === 'financeiro' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+            >
+              Financeiro
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`px-4 py-2 rounded-lg ${viewMode === 'kanban' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+            >
+              Kanban
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-4 py-2 rounded-lg ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+            >
+              Lista
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Monday View */}
+      {viewMode === 'monday' && (
+        <div className="space-y-6">
+          {Object.entries(pedidosAgrupados).map(([grupo, pedidosDoGrupo]) => (
+            <div key={`grupo-${grupo}`} className="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
+              {agruparPor && (
+                <div className="bg-gray-900 px-6 py-3 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    {agruparPor === 'sku' && '🏷️'}
+                    {agruparPor === 'status' && '🔵'}
+                    {grupo} 
+                    <span className="text-sm text-gray-400">({pedidosDoGrupo.length} pedidos)</span>
+                  </h3>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead className="bg-gray-900 border-b border-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase w-8">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            className="rounded cursor-pointer" 
+                            checked={selectAll}
+                            onChange={handleSelectAll}
+                          />
+                          {selectedPedidos.length > 0 && (
+                            <span className="text-xs font-bold text-blue-400">
+                              ({selectedPedidos.length})
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                      
+                      {/* Colunas específicas para MERCADO LIVRE */}
+                      {projeto?.plataforma === 'mercadolivre' ? (
+                        <>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">N.º de Venda</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Data da Venda</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Estado</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[180px]">Descrição do Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[80px]">Unidades</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">SKU</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Variação</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Forma de Entrega</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Comprador</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Receita Produtos</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Tarifa Venda</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Tarifa Envio</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Cancelamentos</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[100px]">Total</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[200px]">Endereço</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Cidade</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[100px]">Estado</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">ID do Pedido</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Nome do Produto</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">SKU</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Nome Variação</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[80px]">Quantidade</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[100px]">Preço Acordado</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[100px]">Taxa Comissão</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[100px]">Taxa Serviço</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[100px]">Valor Líquido</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Opção de Envio</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">
+                            <button 
+                              onClick={() => setOrdenacaoData(ordenacaoData === 'asc' ? 'desc' : 'asc')}
+                              className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+                            >
+                              Data Prevista Envio
+                              {ordenacaoData === 'asc' ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </button>
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Cliente</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Telefone</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-gray-800 divide-y divide-gray-700">
+                    {pedidosDoGrupo.map((pedido) => (
+                  <tr key={pedido.id} className="hover:bg-gray-700/30 group">
+                    <td className="px-4 py-3">
+                      <input 
+                        type="checkbox" 
+                        className="rounded cursor-pointer" 
+                        checked={selectedPedidos.includes(pedido.id)}
+                        onChange={() => handleSelectPedido(pedido.id)}
+                      />
+                    </td>
+                    
+                    {projeto?.plataforma === 'mercadolivre' ? (
+                      <>
+                        <td className="px-4 py-3">
+                          <span className="text-white font-medium">{pedido.numero_pedido || '-'}</span>
+                        </td>
+                        
+                        {/* 2. Data da Venda */}
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.data_venda || '-'}</span>
+                        </td>
+                        
+                        {/* 3. Estado */}
+                        <td className="px-4 py-3">
+                          <select
+                            value={pedido.status}
+                            onChange={(e) => {
+                              handleStatusChange(pedido.id, e.target.value);
+                              handleUpdatePedido(pedido.id, 'status', e.target.value);
+                            }}
+                            className="px-3 py-1.5 text-sm rounded font-medium border-none focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                            style={{
+                              backgroundColor: STATUS_OPTIONS.find(s => s.value === pedido.status)?.color || '#94A3B8',
+                              color: 'white'
+                            }}
+                          >
+                            {statusOptions.map(s => (
+                              <option key={s.value} value={s.value}>{s.label}</option>
+                            ))}
+                          </select>
+                        </td>
+                        
+                        {/* 4. Descrição do Status */}
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-xs">{pedido.descricao_status || '-'}</span>
+                        </td>
+                        
+                        {/* 5. Unidades */}
+                        <td className="px-4 py-3">
+                          <span className="text-white font-medium text-center block">{pedido.quantidade || 1}</span>
+                        </td>
+                        
+                        {/* 6. SKU */}
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.sku || '-'}</span>
+                        </td>
+                        
+                        {/* 7. Variação */}
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.nome_variacao || '-'}</span>
+                        </td>
+                        
+                        {/* 8. Forma de Entrega */}
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.opcao_envio || '-'}</span>
+                        </td>
+                        
+                        {/* 9. Comprador */}
+                        <td className="px-4 py-3">
+                          <span className="text-white text-sm">{pedido.cliente_nome || '-'}</span>
+                        </td>
+                        
+                        {/* 10. Receita por Produtos */}
+                        <td className="px-4 py-3">
+                          <span className="text-green-400 text-sm font-medium">
+                            R$ {pedido.preco_acordado?.toFixed(2) || '0.00'}
+                          </span>
+                        </td>
+                        
+                        {/* 11. Tarifa de Venda e Impostos */}
+                        <td className="px-4 py-3">
+                          <span className="text-red-400 text-sm">
+                            R$ {pedido.valor_taxa_comissao?.toFixed(2) || '0.00'}
+                          </span>
+                        </td>
+                        
+                        {/* 12. Tarifas de Envio */}
+                        <td className="px-4 py-3">
+                          <span className="text-orange-400 text-sm">
+                            R$ {pedido.valor_taxa_servico?.toFixed(2) || '0.00'}
+                          </span>
+                        </td>
+                        
+                        {/* 13. Cancelamentos e Reembolsos */}
+                        <td className="px-4 py-3">
+                          <span className="text-red-400 text-sm">
+                            R$ {pedido.cancelamentos_reembolsos?.toFixed(2) || '0.00'}
+                          </span>
+                        </td>
+                        
+                        {/* 14. Total */}
+                        <td className="px-4 py-3">
+                          <span className="text-green-400 text-sm font-bold">
+                            R$ {pedido.valor_total?.toFixed(2) || '0.00'}
+                          </span>
+                        </td>
+                        
+                        {/* 15. Endereço */}
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-xs">{pedido.endereco || '-'}</span>
+                        </td>
+                        
+                        {/* 16. Cidade */}
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.cidade || '-'}</span>
+                        </td>
+                        
+                        {/* 17. Estado */}
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.estado_endereco || '-'}</span>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-opacity">
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        <input
+                          type="text"
+                          defaultValue={pedido.numero_pedido}
+                          onBlur={(e) => handleUpdatePedido(pedido.id, 'numero_pedido', e.target.value)}
+                          className="bg-transparent text-white border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1 w-full"
+                        />
+                      </div>
+                    </td>
+                    
+                    {/* Status - Dropdown */}
+                    <td className="px-4 py-3">
+                      <select
+                        value={pedido.status}
+                        onChange={(e) => {
+                          handleStatusChange(pedido.id, e.target.value);
+                          handleUpdatePedido(pedido.id, 'status', e.target.value);
+                        }}
+                        className="px-3 py-1.5 text-sm rounded font-medium border-none focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        style={{
+                          backgroundColor: STATUS_OPTIONS.find(s => s.value === pedido.status)?.color || '#94A3B8',
+                          color: 'white'
+                        }}
+                      >
+                        {statusOptions.map(s => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    
+                    {/* Nome do Produto - Editável */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        defaultValue={pedido.produto_nome}
+                        onBlur={(e) => handleUpdatePedido(pedido.id, 'produto_nome', e.target.value)}
+                        placeholder="Nome do produto"
+                        className="bg-transparent text-gray-300 text-sm border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1 w-full"
+                      />
+                    </td>
+                    
+                    {/* SKU - Editável */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        defaultValue={pedido.sku}
+                        onBlur={(e) => handleUpdatePedido(pedido.id, 'sku', e.target.value)}
+                        placeholder="SKU"
+                        className="bg-transparent text-gray-300 text-sm border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1 w-full"
+                      />
+                    </td>
+                    
+                    {/* Nome Variação - Editável */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        defaultValue={pedido.nome_variacao}
+                        onBlur={(e) => handleUpdatePedido(pedido.id, 'nome_variacao', e.target.value)}
+                        placeholder="Variação"
+                        className="bg-transparent text-gray-300 text-sm border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1 w-full"
+                      />
+                    </td>
+                    
+                    {/* Quantidade - Editável */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        defaultValue={pedido.quantidade}
+                        onBlur={(e) => handleUpdatePedido(pedido.id, 'quantidade', parseInt(e.target.value))}
+                        className="w-20 bg-transparent text-white text-center border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1"
+                      />
+                    </td>
+                    
+                    {/* Preço Acordado - Editável */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        step="0.01"
+                        defaultValue={pedido.preco_acordado}
+                        onBlur={(e) => handleUpdatePedido(pedido.id, 'preco_acordado', parseFloat(e.target.value))}
+                        placeholder="0.00"
+                        className="w-24 bg-transparent text-green-400 text-sm border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1"
+                      />
+                    </td>
+                    
+                    {/* Taxa Comissão - Somente Leitura */}
+                    <td className="px-4 py-3">
+                      <span className="text-orange-400 text-sm">
+                        R$ {pedido.valor_taxa_comissao?.toFixed(2) || '0.00'}
+                      </span>
+                    </td>
+                    
+                    {/* Taxa Serviço - Somente Leitura */}
+                    <td className="px-4 py-3">
+                      <span className="text-orange-400 text-sm">
+                        R$ {pedido.valor_taxa_servico?.toFixed(2) || '0.00'}
+                      </span>
+                    </td>
+                    
+                    {/* Valor Líquido - Somente Leitura */}
+                    <td className="px-4 py-3">
+                      <span className="text-green-400 text-sm font-medium">
+                        R$ {pedido.valor_liquido?.toFixed(2) || '0.00'}
+                      </span>
+                    </td>
+                    
+                    {/* Opção de Envio - Editável */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        defaultValue={pedido.opcao_envio}
+                        onBlur={(e) => handleUpdatePedido(pedido.id, 'opcao_envio', e.target.value)}
+                        placeholder="Ex: Normal"
+                        className="bg-transparent text-gray-300 text-sm border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1 w-full"
+                      />
+                    </td>
+                    
+                    {/* Data Prevista Envio - Editável */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="date"
+                        defaultValue={pedido.data_prevista_envio ? new Date(pedido.data_prevista_envio).toISOString().split('T')[0] : ''}
+                        onBlur={(e) => handleUpdatePedido(pedido.id, 'data_prevista_envio', e.target.value)}
+                        className="bg-transparent text-gray-300 text-sm border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1"
+                      />
+                    </td>
+                    
+                    {/* Cliente - Editável */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        defaultValue={pedido.cliente_nome}
+                        onBlur={(e) => handleUpdatePedido(pedido.id, 'cliente_nome', e.target.value)}
+                        placeholder="Nome do cliente"
+                        className="bg-transparent text-white text-sm border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1 w-full"
+                      />
+                    </td>
+                    
+                    {/* Telefone - Editável */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        defaultValue={pedido.cliente_contato}
+                        onBlur={(e) => handleUpdatePedido(pedido.id, 'cliente_contato', e.target.value)}
+                        placeholder="Telefone"
+                        className="bg-transparent text-gray-300 text-sm border-none focus:outline-none focus:bg-gray-700 rounded px-2 py-1 w-full"
+                      />
+                    </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+                
+                {/* Linha de Adicionar Inline - HORIZONTAL */}
+                {showInlineAdd ? (
+                  <tr className="bg-gray-900/80 border-t-2 border-blue-500">
+                    <td className="px-4 py-3">
+                      <input type="checkbox" className="rounded" disabled />
+                    </td>
+                    
+                    {/* ID do Pedido */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={novaLinhaInline.numero_pedido}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, numero_pedido: e.target.value})}
+                        placeholder="ID do pedido..."
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        autoFocus
+                      />
+                    </td>
+                    
+                    {/* Status */}
+                    <td className="px-4 py-3">
+                      <select
+                        value={novaLinhaInline.status}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, status: e.target.value})}
+                        className="w-full px-3 py-2 rounded font-medium text-white focus:ring-2 focus:ring-blue-500"
+                        style={{
+                          backgroundColor: STATUS_OPTIONS.find(s => s.value === novaLinhaInline.status)?.color || '#94A3B8'
+                        }}
+                      >
+                        {statusOptions.map(s => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    
+                    {/* Nome do Produto */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={novaLinhaInline.produto_nome}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, produto_nome: e.target.value})}
+                        placeholder="Nome do produto"
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    
+                    {/* SKU */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={novaLinhaInline.sku}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, sku: e.target.value})}
+                        placeholder="SKU"
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    
+                    {/* Nome Variação */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={novaLinhaInline.nome_variacao}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, nome_variacao: e.target.value})}
+                        placeholder="Nome variação"
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    
+                    {/* Quantidade */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        min="1"
+                        value={novaLinhaInline.quantidade}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, quantidade: parseInt(e.target.value) || 1})}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white text-center rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    
+                    {/* Preço Acordado */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={novaLinhaInline.preco_acordado}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, preco_acordado: parseFloat(e.target.value) || 0})}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    
+                    {/* Taxa Comissão - Somente exibição */}
+                    <td className="px-4 py-3">
+                      <span className="text-orange-400 text-sm">R$ 0.00</span>
+                    </td>
+                    
+                    {/* Taxa Serviço - Somente exibição */}
+                    <td className="px-4 py-3">
+                      <span className="text-orange-400 text-sm">R$ 0.00</span>
+                    </td>
+                    
+                    {/* Valor Líquido - Somente exibição */}
+                    <td className="px-4 py-3">
+                      <span className="text-green-400 text-sm">R$ 0.00</span>
+                    </td>
+                    
+                    {/* Opção de Envio */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={novaLinhaInline.opcao_envio}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, opcao_envio: e.target.value})}
+                        placeholder="Ex: Normal"
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    
+                    {/* Data Prevista Envio */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="date"
+                        value={novaLinhaInline.data_prevista_envio}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, data_prevista_envio: e.target.value})}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    
+                    {/* Cliente */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={novaLinhaInline.cliente_nome}
+                        onChange={(e) => setNovaLinhaInline({...novaLinhaInline, cliente_nome: e.target.value})}
+                        placeholder="Nome do cliente"
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    
+                    {/* Telefone com Botões */}
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={novaLinhaInline.cliente_contato}
+                          onChange={(e) => setNovaLinhaInline({...novaLinhaInline, cliente_contato: e.target.value})}
+                          placeholder="Telefone"
+                          className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={handleAddInline}
+                          className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          title="Salvar"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowInlineAdd(false);
+                            setNovaLinhaInline({
+                              numero_pedido: '',
+                              quantidade: 1,
+                              sku: '',
+                              cliente_nome: '',
+                              sala_impressao: 'Aguardando Impressão',
+                              status: 'Aguardando Produção',
+                              prioridade: 'Normal',
+                              prazo_entrega: '',
+                              responsavel: ''
+                            });
+                          }}
+                          className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                          title="Cancelar"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr className="hover:bg-gray-700/50">
+                    <td className="px-4 py-3"></td>
+                    <td className="px-4 py-3" colSpan="8">
+                      <button
+                        onClick={() => setShowInlineAdd(true)}
+                        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span className="text-sm">Adicionar</span>
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+
+      {/* Produção View - Visão Simplificada sem Preços */}
+      {(viewMode === 'producao' || viewMode === 'pedidos-antigos') && (
+        <div className="space-y-6">
+          {/* Banner informativo para Pedidos Antigos */}
+          {viewMode === 'pedidos-antigos' && (
+            <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">📦</span>
+                <div>
+                  <h3 className="text-lg font-semibold text-yellow-400">Pedidos Antigos</h3>
+                  <p className="text-sm text-gray-300">
+                    Mostrando pedidos com data prevista de envio anterior a hoje ({hoje.toLocaleDateString('pt-BR')})
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Total: {pedidosAntigos.length} pedidos antigos
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Filtros de Tipo de Envio */}
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium text-gray-400">Filtrar por tipo de envio:</span>
+              <button
+                onClick={() => setFiltroTipoEnvio('todos')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  filtroTipoEnvio === 'todos'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                Todos
+              </button>
+              
+              {/* Filtros específicos por plataforma */}
+              {projeto?.plataforma === 'shopee' && (
+                <>
+                  {/* Flex Shopee */}
+                  <button
+                    onClick={() => setFiltroTipoEnvio('flex')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      filtroTipoEnvio === 'flex'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    📦 Flex Shopee
+                  </button>
+                  
+                  {/* Coleta */}
+                  <button
+                    onClick={() => setFiltroTipoEnvio('coleta')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      filtroTipoEnvio === 'coleta'
+                        ? 'bg-cyan-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    🚗 Coleta
+                  </button>
+                </>
+              )}
+              
+              {projeto?.plataforma === 'mercadolivre' && (
+                <>
+                  {/* Mercado Envios Flex */}
+                  <button
+                    onClick={() => setFiltroTipoEnvio('flex')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      filtroTipoEnvio === 'flex'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    📦 Mercado Envios Flex
+                  </button>
+                  
+                  {/* Correios e pontos de envio */}
+                  <button
+                    onClick={() => setFiltroTipoEnvio('correios_pontos')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      filtroTipoEnvio === 'correios_pontos'
+                        ? 'bg-yellow-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    📮 Correios e pontos de envio
+                  </button>
+                </>
+              )}
+              
+              {/* Contador de pedidos filtrados */}
+              <span className="ml-auto text-sm text-gray-400">
+                {pedidosFiltrados.length} pedido(s) {filtroTipoEnvio !== 'todos' && `(${
+                  filtroTipoEnvio === 'flex' ? (projeto?.plataforma === 'shopee' ? 'Flex Shopee' : 'Mercado Envios Flex') : 
+                  filtroTipoEnvio === 'correios_pontos' ? 'Correios e pontos de envio' : 
+                  filtroTipoEnvio === 'coleta' ? 'Coleta' : ''
+                })`}
+              </span>
+            </div>
+          </div>
+          
+          {/* 🔍 FILTROS COMPLETOS - LAYOUT HORIZONTAL */}
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              {/* Status */}
+              <div>
+                <select
+                  value={filtros.status || ''}
+                  onChange={(e) => setFiltros({...filtros, status: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Status: Todos</option>
+                  <option value="Pendente">⏳ Pendente</option>
+                  <option value="Em Produção">🔧 Em Produção</option>
+                  <option value="Concluído">✅ Concluído</option>
+                  <option value="Enviado">📦 Enviado</option>
+                  <option value="Entregue">🎉 Entregue</option>
+                  <option value="Cancelado">❌ Cancelado</option>
+                </select>
+              </div>
+              
+              {/* Situação (Atrasado) */}
+              <div>
+                <select
+                  value={filtros.atrasado === null ? '' : filtros.atrasado ? 'atrasado' : 'em_dia'}
+                  onChange={(e) => setFiltros({
+                    ...filtros, 
+                    atrasado: e.target.value === '' ? null : e.target.value === 'atrasado'
+                  })}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Situação: Todos</option>
+                  <option value="em_dia">✅ Em Dia</option>
+                  <option value="atrasado">⚠️ Atrasados</option>
+                </select>
+              </div>
+              
+              {/* SKU */}
+              <div>
+                <input
+                  type="text"
+                  placeholder="Pesquisar por SKU..."
+                  value={filtros.sku || ''}
+                  onChange={(e) => setFiltros({...filtros, sku: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              {/* Setor */}
+              <div>
+                <select
+                  value={filtros.setor || ''}
+                  onChange={(e) => setFiltros({...filtros, setor: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">🏭 Setor: Todos</option>
+                  <option value="Espelho">🪞 Espelho</option>
+                  <option value="Molduras com Vidro">🖼️ Molduras c/ Vidro</option>
+                  <option value="Molduras">🖼️ Molduras</option>
+                  <option value="Impressão">🖨️ Impressão</option>
+                  <option value="Expedição">📦 Expedição</option>
+                  <option value="Embalagem">📦 Embalagem</option>
+                </select>
+              </div>
+              
+              {/* Status Produção */}
+              <div>
+                <select
+                  value={filtros.status_producao || ''}
+                  onChange={(e) => setFiltros({...filtros, status_producao: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">⚙️ Status Prod: Todos</option>
+                  <option value="Aguardando">⏳ Aguardando</option>
+                  <option value="Em montagem">🔧 Em montagem</option>
+                  <option value="Imprimindo">🖨️ Imprimindo</option>
+                  <option value="Impresso">✅ Impresso</option>
+                  <option value="Finalizado">✨ Finalizado</option>
+                  <option value="Aguardando Envio">📦 Aguardando Envio</option>
+                  <option value="Enviado">🚚 Enviado</option>
+                </select>
+              </div>
+              
+              {/* Ordenar por Data */}
+              <div>
+                <select
+                  value={ordenarPor}
+                  onChange={(e) => setOrdenarPor(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="mais_proxima">📅 Mais Próxima Primeiro</option>
+                  <option value="mais_antiga">📅 Mais Antiga Primeiro</option>
+                </select>
+              </div>
+              
+              {/* Agrupar por */}
+              <div>
+                <select
+                  value={agruparPor}
+                  onChange={(e) => setAgruparPor(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">📊 Sem Agrupamento</option>
+                  <option value="sku">🏷️ Agrupar por SKU</option>
+                  <option value="status">🔵 Agrupar por Status</option>
+                </select>
+              </div>
+              
+              {/* Prazo de Envio */}
+              <div>
+                <select
+                  value={filtros.prazoEnvio || ''}
+                  onChange={(e) => setFiltros({...filtros, prazoEnvio: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">📦 Prazo: Todos</option>
+                  <option value="hoje">🚨 Hoje</option>
+                  <option value="amanha">⏰ Amanhã</option>
+                  <option value="semana">📅 Esta Semana</option>
+                </select>
+              </div>
+            </div>
+            
+            {/* Segunda linha: Status Montagem + Busca Universal + Limpar Filtros */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+              {/* Status Montagem */}
+              <div>
+                <select
+                  value={filtros.status_montagem || ''}
+                  onChange={(e) => setFiltros({...filtros, status_montagem: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">⚙️ Status Montagem: Todos</option>
+                  <option value="Aguardando Montagem">⏳ Aguardando Montagem</option>
+                  <option value="Em Montagem">🔧 Em Montagem</option>
+                  <option value="Finalizado">✨ Finalizado</option>
+                </select>
+              </div>
+              
+              {/* Busca Universal */}
+              <div className="md:col-span-2 flex gap-3">
+                <input
+                  type="text"
+                  placeholder="🔍 Buscar por ID pedido, Nº venda, Nome cliente, Tipo envio..."
+                  value={filtros.busca || ''}
+                  onChange={(e) => setFiltros({...filtros, busca: e.target.value})}
+                  className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                
+                {/* Limpar Filtros */}
+                {(filtros.busca || filtros.status || filtros.setor || filtros.status_producao || filtros.status_montagem || filtros.sku || filtros.prazoEnvio) && (
+                  <button
+                    onClick={() => setFiltros({busca: '', status: '', setor: '', status_producao: '', status_montagem: '', sku: '', prazoEnvio: ''})}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
+                  >
+                    🗑️ Limpar Filtros
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* Contador de resultados */}
+            {(filtros.busca || filtros.status || filtros.setor || filtros.status_producao || filtros.status_montagem) && (
+              <div className="mt-2 text-sm text-gray-400">
+                Encontrados: <span className="text-blue-400 font-medium">{pedidosFiltrados.length}</span> pedidos
+              </div>
+            )}
+          </div>
+          
+          {Object.entries(pedidosAgrupados).map(([grupo, pedidosDoGrupo]) => (
+            <div key={`grupo-${grupo}`} className="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
+              {agruparPor && (
+                <div className="bg-gray-900 px-6 py-3 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    {agruparPor === 'sku' && '🏷️'}
+                    {agruparPor === 'status' && '🔵'}
+                    {grupo} 
+                    <span className="text-sm text-gray-400">({pedidosDoGrupo.length} pedidos)</span>
+                  </h3>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead className="bg-gray-900 border-b border-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase w-8">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            className="rounded cursor-pointer" 
+                            checked={selectAll}
+                            onChange={handleSelectAll}
+                          />
+                          {selectedPedidos.length > 0 && (
+                            <span className="text-xs font-bold text-blue-400">
+                              ({selectedPedidos.length})
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                      
+                      {projeto?.plataforma === 'mercadolivre' ? (
+                        <>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">N.º de Venda</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Estado</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Setor</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[80px]">Unidades</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">SKU</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[180px]">⚙️ Status Montagem</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Variação</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]"># de Anúncio</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Forma de Entrega</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Status Produção</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Comprador</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">ID do pedido</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Setor</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Opção de envio</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[140px]">Data prevista de envio</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Número de referência SKU</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[180px]">⚙️ Status Montagem</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Nome da variação</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[80px]">Quantidade</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Status Produção</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-gray-800 divide-y divide-gray-700">
+                    {pedidosDoGrupo.map((pedido) => (
+                  <tr key={pedido.id} className="hover:bg-gray-700/30 group">
+                    <td className="px-4 py-3">
+                      <input 
+                        type="checkbox" 
+                        className="rounded cursor-pointer" 
+                        checked={selectedPedidos.includes(pedido.id)}
+                        onChange={() => handleSelectPedido(pedido.id)}
+                      />
+                    </td>
+                    
+                    {projeto?.plataforma === 'mercadolivre' ? (
+                      <>
+                        <td className="px-4 py-3">
+                          <span className="text-white font-medium">{pedido.numero_pedido || '-'}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.status || '-'}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <select
+                            value={pedido.status_producao || 'Espelho'}
+                            onChange={(e) => handleUpdatePedido(pedido.id, 'status_producao', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded-full text-white text-sm font-medium focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 cursor-pointer"
+                            style={{ backgroundColor: SETOR_COLORS[pedido.status_producao || 'Espelho'] }}
+                          >
+                            <option value="Espelho" style={{ backgroundColor: SETOR_COLORS['Espelho'] }}>🪞 Espelho</option>
+                            <option value="Molduras com Vidro" style={{ backgroundColor: SETOR_COLORS['Molduras com Vidro'] }}>🖼️ Molduras com Vidro</option>
+                            <option value="Molduras" style={{ backgroundColor: SETOR_COLORS['Molduras'] }}>🖼️ Molduras</option>
+                            <option value="Impressão" style={{ backgroundColor: SETOR_COLORS['Impressão'] }}>🖨️ Impressão</option>
+                            <option value="Expedição" style={{ backgroundColor: SETOR_COLORS['Expedição'] }}>🧾 Expedição</option>
+                            <option value="Embalagem" style={{ backgroundColor: SETOR_COLORS['Embalagem'] }}>📦 Embalagem</option>
+                            <option value="Personalizado" style={{ backgroundColor: SETOR_COLORS['Personalizado'] }}>⭐ Personalizado</option>
+                          </select>
+                        </td>
+                        
+                        {/* AI Suggestion Column */}
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-white font-medium text-center block">{pedido.quantidade || 1}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.sku || '-'}</span>
+                        </td>
+                        
+                        {/* ⚙️ Status Montagem - NOVO */}
+                        <td className="px-4 py-3">
+                          <select
+                            value={pedido.status_montagem || 'Aguardando Montagem'}
+                            onChange={(e) => handleUpdatePedido(pedido.id, 'status_montagem', e.target.value)}
+                            className={`w-full px-3 py-2 rounded-lg text-white text-sm font-medium focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 cursor-pointer transition-all ${
+                              pedido.status_montagem === 'Finalizado' ? 'animate-pulse shadow-lg shadow-green-500/50' : ''
+                            }`}
+                            style={{ 
+                              backgroundColor: 
+                                pedido.status_montagem === 'Finalizado' ? '#10B981' : 
+                                pedido.status_montagem === 'Em Montagem' ? '#F59E0B' : 
+                                '#6B7280'
+                            }}
+                          >
+                            <option value="Aguardando Montagem" style={{ backgroundColor: '#6B7280' }}>⏳ Aguardando Montagem</option>
+                            <option value="Em Montagem" style={{ backgroundColor: '#F59E0B' }}>🔧 Em Montagem</option>
+                            <option value="Finalizado" style={{ backgroundColor: '#10B981' }}>✨ Finalizado</option>
+                          </select>
+                          {pedido.status_montagem === 'Finalizado' && (
+                            <div className="mt-1 flex items-center justify-center gap-1">
+                              <span className="text-green-400 text-xs animate-bounce">🎉</span>
+                              <span className="text-green-400 text-xs font-medium">Pronto!</span>
+                              <span className="text-green-400 text-xs animate-bounce" style={{ animationDelay: '0.2s' }}>✨</span>
+                            </div>
+                          )}
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.nome_variacao || '-'}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.numero_anuncio || '-'}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.opcao_envio || '-'}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <select
+                            value={pedido.status_logistica || 'Aguardando'}
+                            onChange={(e) => handleUpdatePedido(pedido.id, 'status_logistica', e.target.value)}
+                            className={`w-full px-3 py-1.5 rounded-full text-white text-sm font-medium focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 cursor-pointer ${
+                              pedido.status_logistica === 'Finalizado' ? 'ring-2 ring-green-400 animate-pulse' : ''
+                            }`}
+                            style={{ backgroundColor: STATUS_PRODUCAO_COLORS[pedido.status_logistica || 'Aguardando'] }}
+                          >
+                            <option value="Aguardando" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Aguardando'] }}>⏳ Aguardando</option>
+                            <option value="Em montagem" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Em montagem'] }}>🔧 Em montagem</option>
+                            <option value="Imprimindo" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Imprimindo'] }}>🖨️ Imprimindo</option>
+                            <option value="Impresso" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Impresso'] }}>✅ Impresso</option>
+                            <option value="Finalizado" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Finalizado'] }}>✨ Finalizado</option>
+                          </select>
+                          {pedido.status_logistica === 'Finalizado' && (
+                            <div className="mt-1 flex items-center justify-center gap-1">
+                              <span className="text-green-400 text-xs animate-bounce">🎉</span>
+                              <span className="text-green-400 text-xs font-medium">Pronto!</span>
+                              <span className="text-green-400 text-xs animate-bounce" style={{ animationDelay: '0.2s' }}>✨</span>
+                            </div>
+                          )}
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-white text-sm">{pedido.cliente_nome || '-'}</span>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3">
+                          <span className="text-white font-medium">{pedido.numero_pedido || '-'}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <select
+                            value={pedido.status_producao || 'Espelho'}
+                            onChange={(e) => handleUpdatePedido(pedido.id, 'status_producao', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded-full text-white text-sm font-medium focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 cursor-pointer"
+                            style={{ backgroundColor: SETOR_COLORS[pedido.status_producao || 'Espelho'] }}
+                          >
+                            <option value="Espelho" style={{ backgroundColor: SETOR_COLORS['Espelho'] }}>🪞 Espelho</option>
+                            <option value="Molduras com Vidro" style={{ backgroundColor: SETOR_COLORS['Molduras com Vidro'] }}>🖼️ Molduras com Vidro</option>
+                            <option value="Molduras" style={{ backgroundColor: SETOR_COLORS['Molduras'] }}>🖼️ Molduras</option>
+                            <option value="Impressão" style={{ backgroundColor: SETOR_COLORS['Impressão'] }}>🖨️ Impressão</option>
+                            <option value="Expedição" style={{ backgroundColor: SETOR_COLORS['Expedição'] }}>🧾 Expedição</option>
+                            <option value="Embalagem" style={{ backgroundColor: SETOR_COLORS['Embalagem'] }}>📦 Embalagem</option>
+                            <option value="Personalizado" style={{ backgroundColor: SETOR_COLORS['Personalizado'] }}>⭐ Personalizado</option>
+                          </select>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.opcao_envio || '-'}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">
+                            {pedido.data_prevista_envio ? new Date(pedido.data_prevista_envio).toLocaleDateString('pt-BR') : '-'}
+                          </span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.numero_referencia_sku || pedido.sku || '-'}</span>
+                        </td>
+                        
+                        {/* ⚙️ Status Montagem - NOVO */}
+                        <td className="px-4 py-3">
+                          <select
+                            value={pedido.status_montagem || 'Aguardando Montagem'}
+                            onChange={(e) => handleUpdatePedido(pedido.id, 'status_montagem', e.target.value)}
+                            className={`w-full px-3 py-2 rounded-lg text-white text-sm font-medium focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 cursor-pointer transition-all ${
+                              pedido.status_montagem === 'Finalizado' ? 'animate-pulse shadow-lg shadow-green-500/50' : ''
+                            }`}
+                            style={{ 
+                              backgroundColor: 
+                                pedido.status_montagem === 'Finalizado' ? '#10B981' : 
+                                pedido.status_montagem === 'Em Montagem' ? '#F59E0B' : 
+                                '#6B7280'
+                            }}
+                          >
+                            <option value="Aguardando Montagem" style={{ backgroundColor: '#6B7280' }}>⏳ Aguardando Montagem</option>
+                            <option value="Em Montagem" style={{ backgroundColor: '#F59E0B' }}>🔧 Em Montagem</option>
+                            <option value="Finalizado" style={{ backgroundColor: '#10B981' }}>✨ Finalizado</option>
+                          </select>
+                          {pedido.status_montagem === 'Finalizado' && (
+                            <div className="mt-1 flex items-center justify-center gap-1">
+                              <span className="text-green-400 text-xs animate-bounce">🎉</span>
+                              <span className="text-green-400 text-xs font-medium">Pronto!</span>
+                              <span className="text-green-400 text-xs animate-bounce" style={{ animationDelay: '0.2s' }}>✨</span>
+                            </div>
+                          )}
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">{pedido.nome_variacao || '-'}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <span className="text-white font-medium text-center block">{pedido.quantidade || 0}</span>
+                        </td>
+                        
+                        <td className="px-4 py-3">
+                          <select
+                            value={pedido.status_logistica || 'Aguardando'}
+                            onChange={(e) => handleUpdatePedido(pedido.id, 'status_logistica', e.target.value)}
+                            className={`w-full px-3 py-1.5 rounded-full text-white text-sm font-medium focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 cursor-pointer ${
+                              pedido.status_logistica === 'Finalizado' ? 'ring-2 ring-green-400 animate-pulse' : ''
+                            }`}
+                            style={{ backgroundColor: STATUS_PRODUCAO_COLORS[pedido.status_logistica || 'Aguardando'] }}
+                          >
+                            <option value="Aguardando" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Aguardando'] }}>⏳ Aguardando</option>
+                            <option value="Em montagem" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Em montagem'] }}>🔧 Em montagem</option>
+                            <option value="Imprimindo" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Imprimindo'] }}>🖨️ Imprimindo</option>
+                            <option value="Impresso" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Impresso'] }}>✅ Impresso</option>
+                            <option value="Finalizado" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Finalizado'] }}>✨ Finalizado</option>
+                          </select>
+                          {pedido.status_logistica === 'Finalizado' && (
+                            <div className="mt-1 flex items-center justify-center gap-1">
+                              <span className="text-green-400 text-xs animate-bounce">🎉</span>
+                              <span className="text-green-400 text-xs font-medium">Pronto!</span>
+                              <span className="text-green-400 text-xs animate-bounce" style={{ animationDelay: '0.2s' }}>✨</span>
+                            </div>
+                          )}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+
+      {/* Kanban View */}
+      {viewMode === 'kanban' && (
+        <div className="grid grid-cols-6 gap-4">
+          {statusOptions.map(statusOption => (
+            <div key={statusOption.value} className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+              <div className="flex items-center gap-2 mb-4">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: statusOption.color }}
+                ></div>
+                <h3 className="font-bold text-sm text-white">{statusOption.label}</h3>
+                <span className="ml-auto bg-gray-700 px-2 py-1 rounded-full text-xs font-medium text-gray-300">
+                  {pedidosPorStatus[statusOption.value]?.length || 0}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {pedidosPorStatus[statusOption.value]?.map(pedido => (
+                  <div
+                    key={`kanban-pedido-${pedido.id}`}
+                    className="bg-gray-900 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer border-l-4"
+                    style={{ borderLeftColor: statusOption.color }}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <p className="font-medium text-sm text-white">{pedido.numero_pedido}</p>
+                      {pedido.atrasado && (
+                        <AlertCircle className="w-4 h-4 text-red-400" />
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mb-2">{pedido.cliente_nome || 'Cliente não informado'}</p>
+                    <p className="text-xs text-gray-500 mb-2">{pedido.produto_nome}</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className={`px-2 py-1 rounded-full ${getPrioridadeColor(pedido.prioridade)}`}>
+                        {pedido.prioridade}
+                      </span>
+                      <span className="text-gray-400">{formatDate(pedido.prazo_entrega)}</span>
+                    </div>
+                    
+                    {/* Dropdown de mudança de status */}
+                    <select
+                      value={pedido.status}
+                      onChange={(e) => handleStatusChange(pedido.id, e.target.value)}
+                      className="w-full mt-2 px-2 py-1 text-xs border border-gray-600 bg-gray-800 text-white rounded"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {statusOptions.map(s => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* List View */}
+      {viewMode === 'list' && (
+        <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
+          {pedidosFiltrados.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+              <PackageIcon className="w-16 h-16 mb-4 text-gray-600" />
+              <p className="text-lg font-medium">Nenhum pedido encontrado</p>
+              <p className="text-sm">Faça upload de uma planilha para adicionar pedidos</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-900">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Nº Pedido</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Cliente</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Produto</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Qtd</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Valor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Prioridade</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Prazo</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Responsável</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-gray-800 divide-y divide-gray-700">
+                  {pedidosFiltrados.map(pedido => (
+                    <tr key={`relatorio-pedido-${pedido.id}`} className={pedido.atrasado ? 'bg-red-900/20' : 'hover:bg-gray-700/50'}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        {pedido.numero_pedido}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        {pedido.cliente_nome || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-300">
+                        {pedido.produto_nome}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        {pedido.quantidade}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        {formatCurrency(pedido.valor_total)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <select
+                          value={pedido.status}
+                          onChange={(e) => handleStatusChange(pedido.id, e.target.value)}
+                          className="px-3 py-1 text-sm border border-gray-600 bg-gray-700 text-white rounded"
+                          style={{ 
+                            backgroundColor: STATUS_OPTIONS.find(s => s.value === pedido.status)?.color || '#94A3B8',
+                            color: 'white'
+                          }}
+                        >
+                          {statusOptions.map(s => (
+                            <option key={s.value} value={s.value}>{s.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPrioridadeColor(pedido.prioridade)}`}>
+                          {pedido.prioridade}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {formatDate(pedido.prazo_entrega)}
+                          {pedido.atrasado && (
+                            <span className="ml-2 text-red-400 font-bold">
+                              ({pedido.dias_atraso}d)
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        <div className="flex items-center gap-1">
+                          <User className="w-4 h-4" />
+                          {pedido.responsavel || '-'}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Financeiro View - Para Shopee e Mercado Livre com todos os campos */}
+      {viewMode === 'financeiro' && (projeto?.plataforma === 'shopee' || projeto?.plataforma === 'mercadolivre') && (
+        <div className="space-y-6">
+          {Object.entries(pedidosAgrupados).map(([grupo, pedidosDoGrupo]) => (
+            <div key={`grupo-${grupo}`} className="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
+              {agruparPor && (
+                <div className="bg-gray-900 px-6 py-3 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    {agruparPor === 'sku' && '🏷️'}
+                    {agruparPor === 'status' && '🔵'}
+                    {grupo} 
+                    <span className="text-sm text-gray-400">({pedidosDoGrupo.length} pedidos)</span>
+                  </h3>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead className="bg-gray-900 border-b border-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase w-8">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox" 
+                            className="rounded cursor-pointer" 
+                            checked={selectAll}
+                            onChange={handleSelectAll}
+                          />
+                          {selectedPedidos.length > 0 && (
+                            <span className="text-xs font-bold text-blue-400">
+                              ({selectedPedidos.length})
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                      
+                      {/* Cabeçalhos condicionais por plataforma */}
+                      {projeto?.plataforma === 'mercadolivre' ? (
+                        <>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">N.º de Venda</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Estado</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Setor</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[80px]">Unidades</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Receita por Produtos (BRL)</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Tarifa de Venda e Impostos (BRL)</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Tarifas de Envio (BRL)</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Cancelamentos e Reembolsos (BRL)</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[100px]">Total (BRL)</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">SKU</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]"># de Anúncio</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Variação</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Preço Unitário de Venda do Anúncio (BRL)</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Comprador</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Cidade</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[100px]">Estado</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Forma de Entrega</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Status Produção</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">ID do Pedido</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Status do Pedido</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Opção de Envio</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[140px]">Data Prevista Envio</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Número Referência SKU</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[80px]">Quantidade</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Nome da Variação</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Preço Original</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Preço Acordado</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Valor Total Pedido</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Taxa Comissão</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Taxa Serviço</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Nome Comprador</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[150px]">Nome Destinatário</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[200px]">Endereço Entrega</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[120px]">Cidade</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase min-w-[80px]">UF</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-gray-800 divide-y divide-gray-700">
+                    {pedidosDoGrupo.map((pedido) => (
+                      <tr key={pedido.id} className="hover:bg-gray-700/30 group">
+                        <td className="px-4 py-3">
+                          <input 
+                            type="checkbox" 
+                            className="rounded cursor-pointer" 
+                            checked={selectedPedidos.includes(pedido.id)}
+                            onChange={() => handleSelectPedido(pedido.id)}
+                          />
+                        </td>
+                        
+                        {/* Renderização condicional por plataforma */}
+                        {projeto?.plataforma === 'mercadolivre' ? (
+                          <>
+                            {/* MERCADO LIVRE - 18 CAMPOS FINANCEIROS (16 + 2 status) */}
+                            <td className="px-4 py-3">
+                              <span className="text-white font-medium">{pedido.numero_pedido || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.status || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <select
+                                value={pedido.status_producao || 'Espelho'}
+                                onChange={(e) => handleUpdatePedido(pedido.id, 'status_producao', e.target.value)}
+                                className="w-full px-3 py-1.5 rounded-full text-white text-sm font-medium focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 cursor-pointer"
+                                style={{ backgroundColor: SETOR_COLORS[pedido.status_producao || 'Espelho'] }}
+                              >
+                                <option value="Espelho" style={{ backgroundColor: SETOR_COLORS['Espelho'] }}>🪞 Espelho</option>
+                                <option value="Molduras com Vidro" style={{ backgroundColor: SETOR_COLORS['Molduras com Vidro'] }}>🖼️ Molduras com Vidro</option>
+                                <option value="Molduras" style={{ backgroundColor: SETOR_COLORS['Molduras'] }}>🖼️ Molduras</option>
+                                <option value="Impressão" style={{ backgroundColor: SETOR_COLORS['Impressão'] }}>🖨️ Impressão</option>
+                                <option value="Expedição" style={{ backgroundColor: SETOR_COLORS['Expedição'] }}>🧾 Expedição</option>
+                                <option value="Embalagem" style={{ backgroundColor: SETOR_COLORS['Embalagem'] }}>📦 Embalagem</option>
+                                <option value="Personalizado" style={{ backgroundColor: SETOR_COLORS['Personalizado'] }}>⭐ Personalizado</option>
+                              </select>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-white font-medium text-center block">{pedido.quantidade || 1}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-green-400 text-sm font-medium">
+                                R$ {(pedido.receita_produtos || pedido.preco_acordado || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-red-400 text-sm">
+                                R$ {(pedido.tarifa_venda_impostos || pedido.valor_taxa_comissao || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-orange-400 text-sm">
+                                R$ {(pedido.tarifas_envio || pedido.valor_taxa_servico || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-red-400 text-sm">
+                                R$ {(pedido.cancelamentos_reembolsos || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-green-400 text-sm font-bold">
+                                R$ {(pedido.valor_total || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.sku || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.numero_anuncio || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.nome_variacao || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-400 text-sm">
+                                R$ {(pedido.preco_unitario_venda || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-white text-sm">{pedido.cliente_nome || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.cidade || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.estado_endereco || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.opcao_envio || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <select
+                                value={pedido.status_logistica || 'Aguardando'}
+                                onChange={(e) => handleUpdatePedido(pedido.id, 'status_logistica', e.target.value)}
+                                className={`w-full px-3 py-1.5 rounded-full text-white text-sm font-medium focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 cursor-pointer ${
+                                  pedido.status_logistica === 'Finalizado' ? 'ring-2 ring-green-400 animate-pulse' : ''
+                                }`}
+                                style={{ backgroundColor: STATUS_PRODUCAO_COLORS[pedido.status_logistica || 'Aguardando'] }}
+                              >
+                                <option value="Aguardando" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Aguardando'] }}>⏳ Aguardando</option>
+                                <option value="Em montagem" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Em montagem'] }}>🔧 Em montagem</option>
+                                <option value="Imprimindo" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Imprimindo'] }}>🖨️ Imprimindo</option>
+                                <option value="Impresso" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Impresso'] }}>✅ Impresso</option>
+                                <option value="Finalizado" style={{ backgroundColor: STATUS_PRODUCAO_COLORS['Finalizado'] }}>✨ Finalizado</option>
+                              </select>
+                              {pedido.status_logistica === 'Finalizado' && (
+                                <div className="mt-1 flex items-center justify-center gap-1">
+                                  <span className="text-green-400 text-xs animate-bounce">🎉</span>
+                                  <span className="text-green-400 text-xs font-medium">Pronto!</span>
+                                  <span className="text-green-400 text-xs animate-bounce" style={{ animationDelay: '0.2s' }}>✨</span>
+                                </div>
+                              )}
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            {/* SHOPEE - 17 CAMPOS FINANCEIROS */}
+                            <td className="px-4 py-3">
+                              <span className="text-white font-medium">{pedido.numero_pedido || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-blue-400 text-sm">{pedido.status_pedido || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.opcao_envio || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">
+                                {pedido.data_prevista_envio ? new Date(pedido.data_prevista_envio).toLocaleDateString('pt-BR') : '-'}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.numero_referencia_sku || pedido.sku || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-white font-medium text-center block">{pedido.quantidade || 0}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.nome_variacao || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-400 text-sm">
+                                R$ {(pedido.preco_original || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-green-400 text-sm font-medium">
+                                R$ {(pedido.preco_acordado || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-green-400 text-sm font-bold">
+                                R$ {(pedido.valor_total_pedido || pedido.valor_total || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-red-400 text-sm">
+                                R$ {(pedido.valor_taxa_comissao || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-orange-400 text-sm">
+                                R$ {(pedido.valor_taxa_servico || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.nome_usuario_comprador || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-white text-sm">{pedido.cliente_nome || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-xs">{pedido.endereco_entrega || pedido.endereco || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.cidade || '-'}</span>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <span className="text-gray-300 text-sm">{pedido.uf || pedido.estado_endereco || '-'}</span>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {/* Modal de Adicionar Pedido */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-700">
+            <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-6 flex items-center justify-between z-10">
+              <h3 className="text-xl font-bold text-white">
+                Adicionar Novo Pedido - {projeto.nome} ({projeto.plataforma === 'shopee' ? 'Shopee' : 'Mercado Livre'})
+              </h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-2 hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* CAMPOS COMUNS */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-white border-b border-gray-700 pb-2">Informações Básicas</h4>
+                
+                {/* Linha 1: Número do Pedido e SKU */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      {projeto.plataforma === 'mercadolivre' ? 'N.º de Venda' : 'ID do Pedido'} *
+                    </label>
+                    <input
+                      type="text"
+                      value={novoPedido.numero_pedido}
+                      onChange={(e) => setNovoPedido({...novoPedido, numero_pedido: e.target.value})}
+                      placeholder={projeto.plataforma === 'mercadolivre' ? "Ex: ML-12345" : "Ex: SHP-12345"}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">SKU *</label>
+                    <input
+                      type="text"
+                      value={novoPedido.sku}
+                      onChange={(e) => setNovoPedido({...novoPedido, sku: e.target.value})}
+                      placeholder="Ex: PROD-001"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Linha 2: Produto e Variação */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Nome do Produto *</label>
+                    <input
+                      type="text"
+                      value={novoPedido.produto_nome}
+                      onChange={(e) => setNovoPedido({...novoPedido, produto_nome: e.target.value})}
+                      placeholder="Descrição do produto"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Nome da Variação</label>
+                    <input
+                      type="text"
+                      value={novoPedido.nome_variacao}
+                      onChange={(e) => setNovoPedido({...novoPedido, nome_variacao: e.target.value})}
+                      placeholder="Ex: Cor Preta, Tamanho M"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Linha 3: Cliente e Contato */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      {projeto.plataforma === 'mercadolivre' ? 'Comprador' : 'Cliente'} *
+                    </label>
+                    <input
+                      type="text"
+                      value={novoPedido.cliente_nome}
+                      onChange={(e) => setNovoPedido({...novoPedido, cliente_nome: e.target.value})}
+                      placeholder="Nome completo"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Telefone/Contato</label>
+                    <input
+                      type="text"
+                      value={novoPedido.cliente_contato}
+                      onChange={(e) => setNovoPedido({...novoPedido, cliente_contato: e.target.value})}
+                      placeholder="(11) 98765-4321"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* CAMPOS DE VALORES */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-white border-b border-gray-700 pb-2">Valores e Quantidade</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Quantidade *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={novoPedido.quantidade}
+                      onChange={(e) => setNovoPedido({...novoPedido, quantidade: parseInt(e.target.value) || 1})}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Preço Acordado (R$) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={novoPedido.preco_acordado}
+                      onChange={(e) => setNovoPedido({...novoPedido, preco_acordado: parseFloat(e.target.value) || 0})}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Valor Total (R$)</label>
+                    <input
+                      type="text"
+                      value={formatCurrency(novoPedido.quantidade * novoPedido.preco_acordado)}
+                      disabled
+                      className="w-full px-3 py-2 bg-gray-900 border border-gray-600 text-gray-400 rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                {/* CAMPOS ESPECÍFICOS SHOPEE */}
+                {projeto.plataforma === 'shopee' && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Taxa Comissão (%)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={novoPedido.taxa_comissao}
+                        onChange={(e) => setNovoPedido({...novoPedido, taxa_comissao: parseFloat(e.target.value) || 0})}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Taxa Serviço (%)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={novoPedido.taxa_servico}
+                        onChange={(e) => setNovoPedido({...novoPedido, taxa_servico: parseFloat(e.target.value) || 0})}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Valor Líquido (R$)</label>
+                      <input
+                        type="text"
+                        value={formatCurrency(
+                          novoPedido.preco_acordado * novoPedido.quantidade - 
+                          (novoPedido.preco_acordado * novoPedido.quantidade * novoPedido.taxa_comissao / 100) - 
+                          (novoPedido.preco_acordado * novoPedido.quantidade * novoPedido.taxa_servico / 100)
+                        )}
+                        disabled
+                        className="w-full px-3 py-2 bg-gray-900 border border-gray-600 text-gray-400 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* CAMPOS ESPECÍFICOS MERCADO LIVRE */}
+                {projeto.plataforma === 'mercadolivre' && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Receita Produtos (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={novoPedido.receita_produtos}
+                        onChange={(e) => setNovoPedido({...novoPedido, receita_produtos: parseFloat(e.target.value) || 0})}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Tarifa Venda (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={novoPedido.tarifa_venda_impostos}
+                        onChange={(e) => setNovoPedido({...novoPedido, tarifa_venda_impostos: parseFloat(e.target.value) || 0})}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Tarifa Envio (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={novoPedido.tarifas_envio}
+                        onChange={(e) => setNovoPedido({...novoPedido, tarifas_envio: parseFloat(e.target.value) || 0})}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* CAMPOS DE ENVIO */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-white border-b border-gray-700 pb-2">Informações de Envio</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      {projeto.plataforma === 'mercadolivre' ? 'Forma de Entrega' : 'Opção de Envio'}
+                    </label>
+                    <input
+                      type="text"
+                      value={novoPedido.opcao_envio}
+                      onChange={(e) => setNovoPedido({...novoPedido, opcao_envio: e.target.value})}
+                      placeholder={projeto.plataforma === 'mercadolivre' ? "Ex: Mercado Envios Flex" : "Ex: Standard, Express"}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  {projeto.plataforma === 'shopee' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Data Prevista Envio</label>
+                      <input
+                        type="date"
+                        value={novoPedido.data_prevista_envio}
+                        onChange={(e) => setNovoPedido({...novoPedido, data_prevista_envio: e.target.value})}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+                  {projeto.plataforma === 'mercadolivre' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Data da Venda</label>
+                      <input
+                        type="date"
+                        value={novoPedido.data_venda}
+                        onChange={(e) => setNovoPedido({...novoPedido, data_venda: e.target.value})}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Endereço (Mercado Livre) */}
+                {projeto.plataforma === 'mercadolivre' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Endereço</label>
+                      <input
+                        type="text"
+                        value={novoPedido.endereco}
+                        onChange={(e) => setNovoPedido({...novoPedido, endereco: e.target.value})}
+                        placeholder="Rua, Número, Complemento"
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Cidade</label>
+                        <input
+                          type="text"
+                          value={novoPedido.cidade}
+                          onChange={(e) => setNovoPedido({...novoPedido, cidade: e.target.value})}
+                          placeholder="Ex: São Paulo"
+                          className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Estado</label>
+                        <input
+                          type="text"
+                          value={novoPedido.estado_endereco}
+                          onChange={(e) => setNovoPedido({...novoPedido, estado_endereco: e.target.value})}
+                          placeholder="Ex: SP"
+                          maxLength={2}
+                          className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* OUTROS CAMPOS */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-white border-b border-gray-700 pb-2">Controle e Status</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {projeto.plataforma === 'mercadolivre' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Descrição do Status</label>
+                      <input
+                        type="text"
+                        value={novoPedido.descricao_status}
+                        onChange={(e) => setNovoPedido({...novoPedido, descricao_status: e.target.value})}
+                        placeholder="Ex: Pedido Confirmado"
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Prazo de Entrega</label>
+                    <input
+                      type="date"
+                      value={novoPedido.prazo_entrega}
+                      onChange={(e) => setNovoPedido({...novoPedido, prazo_entrega: e.target.value})}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Observações</label>
+                  <textarea
+                    value={novoPedido.observacoes}
+                    onChange={(e) => setNovoPedido({...novoPedido, observacoes: e.target.value})}
+                    rows={3}
+                    placeholder="Detalhes adicionais sobre o pedido..."
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 bg-gray-800 border-t border-gray-700 p-6 flex gap-3 z-10">
+              <button
+                onClick={handleAddPedido}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+              >
+                Criar Pedido
+              </button>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal de Upload de Planilha */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl border border-gray-700">
+            <div className="p-6 border-b border-gray-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-white">Upload de Planilha de Pedidos</h3>
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setUploadFile(null);
+                  }}
+                  className="p-2 hover:bg-gray-700 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Seletor de Formato */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Loja / Plataforma
+                </label>
+                <select
+                  value={uploadFormato}
+                  onChange={(e) => setUploadFormato(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="shopee">Shopee</option>
+                  <option value="mercadolivre">Mercado Livre</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  {projeto?.plataforma === 'shopee' && '⚠️ Este projeto é Shopee - selecione "Shopee"'}
+                  {projeto?.plataforma === 'mercadolivre' && '⚠️ Este projeto é Mercado Livre - selecione "Mercado Livre"'}
+                </p>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-400 mb-4">
+                  {uploadFormato === 'shopee' ? (
+                    <>
+                      Faça upload da planilha de pedidos exportada do <span className="text-orange-400 font-semibold">Shopee</span>. 
+                      A planilha deve conter <span className="text-white font-semibold">17 campos completos</span> com todas as informações do pedido.
+                    </>
+                  ) : (
+                    <>
+                      Faça upload da planilha de pedidos exportada do <span className="text-yellow-400 font-semibold">Mercado Livre / Bling</span>. 
+                      O cabeçalho da planilha começa na <span className="text-white font-semibold">linha 6</span>.
+                      <br />
+                      <span className="text-green-400 text-xs mt-1 block">✅ Formato compatível com exportação do Bling ERP</span>
+                    </>
+                  )}
+                  <br />
+                  <span className="text-gray-500 text-xs">Formatos aceitos: Excel (.xlsx, .xls) ou CSV (.csv)</span>
+                </p>
+                
+                <div className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-white font-medium mb-2">
+                      {uploadFile ? uploadFile.name : 'Clique para selecionar arquivo'}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      ou arraste e solte aqui
+                    </p>
+                  </label>
+                </div>
+              </div>
+
+              <div className="bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto">
+                <h4 className="text-sm font-medium text-white mb-2">Colunas esperadas na planilha:</h4>
+                {uploadFormato === 'shopee' ? (
+                  <ul className="text-sm text-gray-400 space-y-1">
+                    <li>• <span className="text-red-400">ID do Pedido (obrigatório)</span></li>
+                    <li>• Status do Pedido</li>
+                    <li>• Opção de Envio</li>
+                    <li>• Data Prevista de Envio</li>
+                    <li>• Número de Referência SKU</li>
+                    <li>• Quantidade</li>
+                    <li>• Nome da Variação</li>
+                    <li>• Preço Original</li>
+                    <li>• Preço Acordado</li>
+                    <li>• Valor Total</li>
+                    <li>• Taxa de Comissão</li>
+                    <li>• Taxa de Serviço</li>
+                    <li>• Nome de Usuário (Comprador)</li>
+                    <li>• Nome do Destinatário</li>
+                    <li>• Endereço de Entrega</li>
+                    <li>• Cidade</li>
+                    <li>• UF</li>
+                  </ul>
+                ) : (
+                  <ul className="text-sm text-gray-400 space-y-1">
+                    <li>• <span className="text-red-400">N.º de Venda (obrigatório)</span></li>
+                    <li>• Data da Venda</li>
+                    <li>• Estado</li>
+                    <li>• Descrição do Status</li>
+                    <li>• Unidades</li>
+                    <li>• Receita por Produtos (BRL)</li>
+                    <li>• Tarifa de Venda e Impostos (BRL)</li>
+                    <li>• Tarifas de Envio (BRL)</li>
+                    <li>• Cancelamentos e Reembolsos (BRL)</li>
+                    <li>• Total (BRL)</li>
+                    <li>• SKU</li>
+                    <li>• # de Anúncio</li>
+                    <li>• Variação</li>
+                    <li>• Preço Unitário de Venda do Anúncio (BRL)</li>
+                    <li>• Comprador</li>
+                    <li>• Endereço</li>
+                    <li>• Cidade</li>
+                    <li>• Estado (Endereço)</li>
+                    <li>• Forma de Entrega</li>
+                  </ul>
+                )}
+                <p className="text-xs text-gray-500 mt-3 italic">
+                  {uploadFormato === 'shopee' 
+                    ? '📌 A planilha deve conter todos os 17 campos acima para importação completa.'
+                    : (
+                      <>
+                        📌 A planilha deve conter os campos acima. O cabeçalho começa na linha 6.
+                        <br />
+                        <span className="text-blue-400 mt-2 block">
+                          💡 <strong>Como exportar do Bling:</strong> Acesse Vendas → Pedidos de Venda → Relatórios → Exportar Excel
+                        </span>
+                      </>
+                    )}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-700 flex gap-3">
+              <button
+                onClick={handleConfirmarUpload}
+                disabled={!uploadFile || uploadProgress}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 ${
+                  uploadFile && !uploadProgress
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {uploadProgress ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    Importar Pedidos
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setUploadFile(null);
+                }}
+                className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
