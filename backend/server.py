@@ -8028,6 +8028,68 @@ async def add_anexo(card_id: str, anexo: dict, current_user: dict = Depends(get_
     
     return novo_anexo
 
+@api_router.post("/kanban/cards/{card_id}/anexo/upload")
+async def upload_anexo(card_id: str, file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+    """Upload de arquivo como anexo
+    Salva o arquivo localmente e retorna o path
+    """
+    try:
+        # Criar diretório de uploads se não existir
+        upload_dir = Path("/app/uploads")
+        upload_dir.mkdir(exist_ok=True)
+        
+        # Gerar nome único para o arquivo
+        file_extension = Path(file.filename).suffix
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = upload_dir / unique_filename
+        
+        # Salvar arquivo
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        
+        # URL relativa para acesso
+        file_url = f"/uploads/{unique_filename}"
+        
+        # Criar anexo
+        novo_anexo = {
+            "id": str(uuid.uuid4()),
+            "nome": file.filename,
+            "url": file_url,
+            "tipo": "upload",
+            "tamanho": len(contents),
+            "data": datetime.now(timezone.utc).isoformat(),
+            "usuario": current_user.get('username', 'Usuário')
+        }
+        
+        # Registrar atividade
+        atividade = {
+            "id": str(uuid.uuid4()),
+            "tipo": "fez_upload",
+            "descricao": f"Fez upload de {file.filename}",
+            "usuario": current_user.get('username', 'Usuário'),
+            "data": datetime.now(timezone.utc).isoformat()
+        }
+        
+        result = await db.kanban_cards.update_one(
+            {"id": card_id},
+            {
+                "$push": {
+                    "anexos": novo_anexo,
+                    "atividades": atividade
+                },
+                "$set": {"updated_at": datetime.now(timezone.utc)}
+            }
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Card não encontrado")
+        
+        return novo_anexo
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao fazer upload: {str(e)}")
+
 @api_router.delete("/kanban/cards/{card_id}/anexo/{anexo_id}")
 async def delete_anexo(card_id: str, anexo_id: str, current_user: dict = Depends(get_current_user)):
     """Remove um anexo do card"""
