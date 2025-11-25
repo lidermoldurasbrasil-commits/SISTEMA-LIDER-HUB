@@ -2352,41 +2352,62 @@ export default function KanbanBoard() {
 
               {/* Adicionar Membro */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Adicionar Membro:</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={novoMembro} 
-                    onChange={(e) => setNovoMembro(e.target.value)} 
-                    onKeyPress={async (e) => {
-                      if (e.key === 'Enter') {
-                        await adicionarMembro();
-                        // Recarregar card
-                        const token = localStorage.getItem('token');
-                        const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
-                          headers: { Authorization: `Bearer ${token}` }
-                        });
-                        setCardSelecionado(response.data);
-                      }
-                    }}
-                    placeholder="Nome do membro..." 
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm" 
-                  />
-                  <button 
-                    onClick={async () => {
-                      await adicionarMembro();
-                      // Recarregar card
-                      const token = localStorage.getItem('token');
-                      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                      });
-                      setCardSelecionado(response.data);
-                    }}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm"
-                  >
-                    Adicionar
-                  </button>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Selecionar Membros:</label>
+                
+                {/* Lista de Membros Disponíveis */}
+                <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
+                  {membrosDisponiveis.length > 0 ? (
+                    membrosDisponiveis.map((membro) => {
+                      const jaAdicionado = cardSelecionado.assignees?.includes(membro.username);
+                      
+                      return (
+                        <button
+                          key={membro.id}
+                          onClick={async () => {
+                            if (jaAdicionado) {
+                              await removerMembro(membro.username);
+                            } else {
+                              setNovoMembro(membro.username);
+                              await adicionarMembro();
+                            }
+                            // Recarregar card
+                            const token = localStorage.getItem('token');
+                            const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            setCardSelecionado(response.data);
+                            setNovoMembro('');
+                          }}
+                          className={`w-full text-left px-3 py-2 hover:bg-indigo-50 flex items-center justify-between border-b border-gray-100 last:border-b-0 ${
+                            jaAdicionado ? 'bg-indigo-50' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <MemberAvatar username={membro.username} size="sm" />
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{membro.username}</div>
+                              {membro.nome && (
+                                <div className="text-xs text-gray-600">{membro.nome}</div>
+                              )}
+                            </div>
+                          </div>
+                          {jaAdicionado && (
+                            <div className="flex items-center gap-1 text-indigo-600">
+                              <CheckSquare className="w-4 h-4" />
+                              <span className="text-xs font-medium">Adicionado</span>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-gray-500 p-3">Nenhum membro disponível</p>
+                  )}
                 </div>
+                
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 Click em um membro para adicionar ou remover
+                </p>
               </div>
             </div>
 
