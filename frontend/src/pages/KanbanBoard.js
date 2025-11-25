@@ -1568,20 +1568,87 @@ export default function KanbanBoard() {
 
                                   {/* Sub-tarefas */}
                                   {totalSubtarefas > 0 && (
-                                    <div className="mt-3 ml-4 space-y-2">
-                                      {subtarefas.map((subtarefa) => (
-                                        <div key={subtarefa.id} className="flex items-center gap-2">
-                                          <input 
-                                            type="checkbox" 
-                                            checked={subtarefa.concluido} 
-                                            onChange={() => toggleSubtarefa(item.id, subtarefa.id, subtarefa.concluido)} 
-                                            className="w-3 h-3" 
-                                          />
-                                          <span className={`text-sm ${subtarefa.concluido ? 'line-through text-gray-500' : 'text-gray-700'}`}>
-                                            {subtarefa.texto}
-                                          </span>
-                                        </div>
-                                      ))}
+                                    <div className="mt-3 ml-4 space-y-3">
+                                      {subtarefas.map((subtarefa) => {
+                                        const subSubtarefas = subtarefa.subsubtarefas || [];
+                                        const totalSubSub = subSubtarefas.length;
+                                        const subSubConcluidas = subSubtarefas.filter(s => s.concluido).length;
+                                        
+                                        return (
+                                          <div key={subtarefa.id} className="border-l-2 border-gray-300 pl-3">
+                                            <div className="flex items-start gap-2">
+                                              <input 
+                                                type="checkbox" 
+                                                checked={subtarefa.concluido} 
+                                                onChange={() => toggleSubtarefa(item.id, subtarefa.id, subtarefa.concluido)} 
+                                                className="w-3 h-3 mt-0.5" 
+                                              />
+                                              <div className="flex-1">
+                                                <span className={`text-sm ${subtarefa.concluido ? 'line-through text-gray-500' : 'text-gray-700'}`}>
+                                                  {subtarefa.texto}
+                                                </span>
+                                                
+                                                {/* Sub-Sub-tarefas (Aninhadas) */}
+                                                {totalSubSub > 0 && (
+                                                  <div className="mt-2 ml-4 space-y-1.5">
+                                                    {subSubtarefas.map((subSub) => (
+                                                      <div key={subSub.id} className="flex items-center gap-2">
+                                                        <input 
+                                                          type="checkbox" 
+                                                          checked={subSub.concluido} 
+                                                          onChange={() => toggleSubSubtarefa(item.id, subtarefa.id, subSub.id, subSub.concluido)} 
+                                                          className="w-2.5 h-2.5" 
+                                                        />
+                                                        <span className={`text-xs ${subSub.concluido ? 'line-through text-gray-400' : 'text-gray-600'}`}>
+                                                          {subSub.texto}
+                                                        </span>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+
+                                                {/* Adicionar Sub-Sub-tarefa */}
+                                                {adicionandoSubSubtarefa === subtarefa.id ? (
+                                                  <div className="mt-2 ml-4 flex gap-1">
+                                                    <input
+                                                      autoFocus
+                                                      type="text"
+                                                      value={textoSubSubtarefa}
+                                                      onChange={(e) => setTextoSubSubtarefa(e.target.value)}
+                                                      onKeyPress={(e) => e.key === 'Enter' && adicionarSubSubtarefa(item.id, subtarefa.id)}
+                                                      placeholder="Sub-sub-tarefa..."
+                                                      className="flex-1 border border-gray-300 rounded px-2 py-0.5 text-xs"
+                                                    />
+                                                    <button
+                                                      onClick={() => adicionarSubSubtarefa(item.id, subtarefa.id)}
+                                                      className="bg-indigo-600 text-white px-2 py-0.5 rounded hover:bg-indigo-700 text-xs"
+                                                    >
+                                                      +
+                                                    </button>
+                                                    <button
+                                                      onClick={() => {
+                                                        setAdicionandoSubSubtarefa(null);
+                                                        setTextoSubSubtarefa('');
+                                                      }}
+                                                      className="text-gray-600 hover:text-gray-900"
+                                                    >
+                                                      <X className="w-3 h-3" />
+                                                    </button>
+                                                  </div>
+                                                ) : (
+                                                  <button
+                                                    onClick={() => setAdicionandoSubSubtarefa(subtarefa.id)}
+                                                    className="mt-1 ml-4 text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                                                  >
+                                                    <Plus className="w-3 h-3" />
+                                                    Adicionar sub-sub-tarefa
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   )}
 
