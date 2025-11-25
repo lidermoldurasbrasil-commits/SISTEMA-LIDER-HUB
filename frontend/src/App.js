@@ -40,6 +40,7 @@ import IntegradorML from './pages/gestao/IntegradorML';
 import MembrosMarketing from './pages/gestao/marketing/MembrosMarketing';
 import CalendarioTarefas from './pages/gestao/marketing/CalendarioTarefas';
 import DashboardMarketing from './pages/gestao/marketing/DashboardMarketing';
+import KanbanBoard from './pages/KanbanBoard';
 
 import axios from 'axios';
 import './App.css';
