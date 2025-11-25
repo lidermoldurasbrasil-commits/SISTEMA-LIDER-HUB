@@ -70,6 +70,11 @@ export default function KanbanBoard() {
   const [capaUrl, setCapaUrl] = useState('');
   const [capaCor, setCapaCor] = useState('');
   const [tipoCapaSelecionado, setTipoCapaSelecionado] = useState('cor'); // 'cor' ou 'imagem'
+  
+  // Estados para data
+  const [modalDataAberto, setModalDataAberto] = useState(false);
+  const [dataVencimento, setDataVencimento] = useState('');
+  const [horaVencimento, setHoraVencimento] = useState('12:00');
 
   const fundos = [
     { id: 'gradient-1', nome: 'Índigo Roxo', classe: 'bg-gradient-to-br from-indigo-50 to-purple-50' },
