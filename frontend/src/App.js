@@ -158,6 +158,9 @@ function App() {
               <Route path="/complaints" element={<Complaints />} />
               <Route path="/crm" element={<CRM />} />
               
+              {/* Kanban Board */}
+              <Route path="/kanban" element={<KanbanBoard />} />
+              
               {/* Legacy routes - redirect to marketplace */}
               <Route path="/production" element={<Navigate to="/marketplace/production" replace />} />
               <Route path="/returns" element={<Navigate to="/marketplace/returns" replace />} />
