@@ -100,6 +100,11 @@ export default function KanbanBoard() {
   const [novaQuestao, setNovaQuestao] = useState('');
   const [questaoExpandida, setQuestaoExpandida] = useState(null);
   const [novaResposta, setNovaResposta] = useState('');
+  
+  // Estados para atribuir membros
+  const [atribuindoMembroItem, setAtribuindoMembroItem] = useState(null); // ID do item checklist
+  const [atribuindoMembroQuestao, setAtribuindoMembroQuestao] = useState(null); // ID da questão
+  const [membrosDisponiveis, setMembrosDisponiveis] = useState([]);
   const [modalCopiarAberto, setModalCopiarAberto] = useState(false);
   const [colunaSelecionadaMover, setColunaSelecionadaMover] = useState(null);
   const [modalLabelAberto, setModalLabelAberto] = useState(false);
