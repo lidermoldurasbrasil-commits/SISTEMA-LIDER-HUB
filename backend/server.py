@@ -8192,13 +8192,26 @@ async def atualizar_labels(card_id: str, labels_data: dict, current_user: dict =
     """
     labels = labels_data.get('labels', [])
     
+    # Registrar atividade
+    labels_nomes = [l.get('name', '') for l in labels if l.get('name')]
+    descricao_labels = ", ".join(labels_nomes) if labels_nomes else "etiquetas"
+    
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "atualizou_etiquetas",
+        "descricao": f"Atualizou as etiquetas: {descricao_labels}",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
     result = await db.kanban_cards.update_one(
         {"id": card_id},
         {
             "$set": {
                 "labels": labels,
                 "updated_at": datetime.now(timezone.utc)
-            }
+            },
+            "$push": {"atividades": atividade}
         }
     )
     
