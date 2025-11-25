@@ -8232,6 +8232,140 @@ async def atualizar_labels(card_id: str, labels_data: dict, current_user: dict =
     
     return {"message": "Labels atualizadas", "labels": labels}
 
+# ============ ROTAS PARA QUESTÕES A RESOLVER ============
+
+@api_router.post("/kanban/cards/{card_id}/questoes")
+async def adicionar_questao(card_id: str, questao_data: dict, current_user: dict = Depends(get_current_user)):
+    """Adiciona uma nova questão/pergunta ao card para ser resolvida"""
+    pergunta = questao_data.get('pergunta', '').strip()
+    
+    if not pergunta:
+        raise HTTPException(status_code=400, detail="Pergunta é obrigatória")
+    
+    nova_questao = {
+        "id": str(uuid.uuid4()),
+        "pergunta": pergunta,
+        "resolvida": False,
+        "respostas": [],
+        "criado_em": datetime.now(timezone.utc).isoformat(),
+        "criado_por": current_user.get('username', 'Usuário')
+    }
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "adicionou_questao",
+        "descricao": f"Adicionou questão: {pergunta[:50]}...",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$push": {
+                "questoes_resolver": nova_questao,
+                "atividades": atividade
+            },
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return nova_questao
+
+@api_router.put("/kanban/cards/{card_id}/questoes/{questao_id}")
+async def marcar_questao_resolvida(card_id: str, questao_id: str, status_data: dict, current_user: dict = Depends(get_current_user)):
+    """Marca uma questão como resolvida ou não resolvida"""
+    resolvida = status_data.get('resolvida', False)
+    
+    # Buscar card e questão
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    questao = next((q for q in card.get('questoes_resolver', []) if q['id'] == questao_id), None)
+    if not questao:
+        raise HTTPException(status_code=404, detail="Questão não encontrada")
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "atualizou_questao",
+        "descricao": f"Marcou questão como {'resolvida' if resolvida else 'não resolvida'}",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id, "questoes_resolver.id": questao_id},
+        {
+            "$set": {
+                "questoes_resolver.$.resolvida": resolvida,
+                "updated_at": datetime.now(timezone.utc)
+            },
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card ou questão não encontrados")
+    
+    return {"message": "Status da questão atualizado"}
+
+@api_router.post("/kanban/cards/{card_id}/questoes/{questao_id}/respostas")
+async def adicionar_resposta_questao(card_id: str, questao_id: str, resposta_data: dict, current_user: dict = Depends(get_current_user)):
+    """Adiciona uma resposta/decisão a uma questão"""
+    texto = resposta_data.get('texto', '').strip()
+    autor = resposta_data.get('autor', current_user.get('username', 'Usuário'))
+    
+    if not texto:
+        raise HTTPException(status_code=400, detail="Texto da resposta é obrigatório")
+    
+    # Buscar card e questão
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    questao = next((q for q in card.get('questoes_resolver', []) if q['id'] == questao_id), None)
+    if not questao:
+        raise HTTPException(status_code=404, detail="Questão não encontrada")
+    
+    nova_resposta = {
+        "id": str(uuid.uuid4()),
+        "texto": texto,
+        "autor": autor,
+        "criado_em": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "adicionou_resposta",
+        "descricao": f"Adicionou resposta a uma questão",
+        "usuario": autor,
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id, "questoes_resolver.id": questao_id},
+        {
+            "$push": {
+                "questoes_resolver.$.respostas": nova_resposta,
+                "atividades": atividade
+            },
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card ou questão não encontrados")
+    
+    return nova_resposta
+
+
 @api_router.put("/kanban/cards/{card_id}/descricao")
 async def atualizar_descricao(card_id: str, descricao_data: dict, current_user: dict = Depends(get_current_user)):
     """Atualiza a descrição de um card
