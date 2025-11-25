@@ -428,17 +428,10 @@ export default function KanbanBoard() {
       );
       
       // Atualizar card selecionado
-      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
+      const responseCard = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setCardSelecionado(response.data);
-      carregarDados();
-      
-      // Recarregar card
-      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${cardSelecionado.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setCardSelecionado(response.data);
+      setCardSelecionado(responseCard.data);
       carregarDados();
     } catch (error) {
       toast.error('Erro ao atualizar etiquetas');
