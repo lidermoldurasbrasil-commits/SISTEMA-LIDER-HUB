@@ -743,14 +743,18 @@ export default function KanbanBoard() {
   };
 
   const abrirDetalheCard = async (card) => {
+    setCardSelecionado(card);
+    setCardDetalheAberto(true);
+    
+    // Carregar membros disponíveis
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${BACKEND_URL}/api/kanban/cards/${card.id}`, { headers: { Authorization: `Bearer ${token}` } });
-      setCardSelecionado(response.data);
-      setCardDetalheAberto(true);
-      setAbaAtiva('detalhes');
+      const response = await axios.get(`${BACKEND_URL}/api/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMembrosDisponiveis(response.data || []);
     } catch (error) {
-      toast.error('Erro ao carregar detalhes do card');
+      console.error('Erro ao carregar membros:', error);
     }
   };
 
