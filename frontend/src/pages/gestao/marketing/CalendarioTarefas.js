@@ -328,7 +328,9 @@ export default function CalendarioTarefas() {
       data_hora: '',
       status: 'A Fazer',
       prioridade: 'Média',
-      tags: []
+      tags: [],
+      localizacao: '',
+      participantes: []
     });
   };
 
