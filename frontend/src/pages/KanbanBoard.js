@@ -15,6 +15,52 @@ const LABEL_COLORS = [
   { value: 'orange', label: 'Laranja', hex: '#F97316' },
 ];
 
+// Componente de Avatar para Membros
+const MemberAvatar = ({ username, size = 'sm' }) => {
+  const sizeClasses = {
+    xs: 'w-5 h-5 text-[10px]',
+    sm: 'w-7 h-7 text-xs',
+    md: 'w-10 h-10 text-sm',
+    lg: 'w-12 h-12 text-base'
+  };
+  
+  const getInitials = (name) => {
+    if (!name) return '?';
+    const parts = name.split(/[\s-_]+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+  
+  const getColorFromName = (name) => {
+    const colors = [
+      'bg-gradient-to-br from-purple-500 to-pink-500',
+      'bg-gradient-to-br from-blue-500 to-cyan-500',
+      'bg-gradient-to-br from-green-500 to-emerald-500',
+      'bg-gradient-to-br from-orange-500 to-red-500',
+      'bg-gradient-to-br from-indigo-500 to-purple-500',
+      'bg-gradient-to-br from-teal-500 to-blue-500',
+      'bg-gradient-to-br from-rose-500 to-pink-500',
+      'bg-gradient-to-br from-amber-500 to-orange-500',
+    ];
+    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[hash % colors.length];
+  };
+  
+  const initials = getInitials(username);
+  const colorClass = getColorFromName(username);
+  
+  return (
+    <div 
+      className={`${sizeClasses[size]} ${colorClass} rounded-full flex items-center justify-center text-white font-bold shadow-md ring-2 ring-white hover:scale-110 transition-transform cursor-pointer`}
+      title={username}
+    >
+      {initials}
+    </div>
+  );
+};
+
 export default function KanbanBoard() {
   const [colunas, setColunas] = useState([]);
   const [cards, setCards] = useState({});
