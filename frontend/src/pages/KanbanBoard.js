@@ -206,6 +206,30 @@ export default function KanbanBoard() {
     setModalCardAberto(true);
   };
 
+  const criarCardRapido = async (colunaId) => {
+    if (!textoNovoCard.trim()) {
+      toast.error('Digite um título para o card');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${BACKEND_URL}/api/kanban/cards`, { titulo: textoNovoCard.trim(), coluna_id: colunaId, descricao: '', labels: [] }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Card criado!');
+      setTextoNovoCard('');
+      setAdicionandoCardColuna(null);
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao criar card');
+    }
+  };
+
+  const selecionarFundo = (fundoId) => {
+    setFundoSelecionado(fundoId);
+    localStorage.setItem('kanban-fundo', fundoId);
+    setModalFundoAberto(false);
+  };
+
   const salvarCard = async () => {
     if (!formCard.titulo.trim()) {
       toast.error('Título é obrigatório');
