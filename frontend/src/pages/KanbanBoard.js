@@ -693,15 +693,27 @@ export default function KanbanBoard() {
                               {(cards[coluna.id] || []).map((card, cardIndex) => (
                                 <Draggable key={card.id} draggableId={card.id} index={cardIndex}>
                                   {(provided, snapshot) => (
-                                    <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onClick={() => abrirDetalheCard(card)} className={`bg-white rounded-lg shadow-sm border border-gray-200 p-3 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all ${snapshot.isDragging ? 'opacity-50 rotate-2 shadow-lg' : ''}`}>
-                                      {card.labels && card.labels.length > 0 && (
-                                        <div className="flex gap-1 mb-2 flex-wrap">
-                                          {card.labels.map((label, i) => (
-                                            <div key={i} className="h-2 w-10 rounded-full" style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }} />
-                                          ))}
+                                    <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onClick={() => abrirDetalheCard(card)} className={`bg-white rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all overflow-hidden ${snapshot.isDragging ? 'opacity-50 rotate-2 shadow-lg' : ''}`}>
+                                      {/* Capa do Card */}
+                                      {(card.capa_url || card.capa_cor) && (
+                                        <div className="w-full h-32 -mt-0 -mx-0 mb-2">
+                                          {card.capa_url ? (
+                                            <img src={card.capa_url} alt="Capa" className="w-full h-full object-cover" />
+                                          ) : (
+                                            <div className="w-full h-full" style={{ backgroundColor: card.capa_cor }} />
+                                          )}
                                         </div>
                                       )}
-                                      <h4 className="text-sm font-medium text-gray-900 mb-2">{card.titulo}</h4>
+                                      
+                                      <div className="p-3">
+                                        {card.labels && card.labels.length > 0 && (
+                                          <div className="flex gap-1 mb-2 flex-wrap">
+                                            {card.labels.map((label, i) => (
+                                              <div key={i} className="h-2 w-10 rounded-full" style={{ backgroundColor: LABEL_COLORS.find(l => l.value === label.color)?.hex }} />
+                                            ))}
+                                          </div>
+                                        )}
+                                        <h4 className="text-sm font-medium text-gray-900 mb-2">{card.titulo}</h4>
                                       <div className="flex items-center gap-3 text-xs text-gray-600">
                                         {card.assignees && card.assignees.length > 0 && (
                                           <div className="flex items-center gap-1">
