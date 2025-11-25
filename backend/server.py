@@ -7523,6 +7523,394 @@ async def update_status_pedido_loja(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============= KANBAN BOARD - SISTEMA TRELLO =============
+
+class KanbanLabel(BaseModel):
+    """Modelo para etiquetas/labels de cards"""
+    color: str  # red, blue, purple, yellow, green, orange
+    name: str = ""
+
+class KanbanCard(BaseModel):
+    """Modelo para cards do Kanban"""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    titulo: str
+    descricao: str = ""
+    coluna_id: str  # ID da coluna onde o card está
+    posicao: int = 0  # Ordem do card dentro da coluna
+    labels: List[KanbanLabel] = []
+    assignees: List[str] = []  # IDs dos usuários atribuídos
+    checklist: List[dict] = []  # [{"id": "uuid", "texto": "...", "concluido": bool}]
+    comentarios: List[dict] = []  # [{"id": "uuid", "autor": "...", "texto": "...", "data": "..."}]
+    data_vencimento: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class KanbanCardCreate(BaseModel):
+    """Modelo para criar um card"""
+    titulo: str
+    descricao: str = ""
+    coluna_id: str
+    labels: List[KanbanLabel] = []
+    assignees: List[str] = []
+    data_vencimento: Optional[str] = None
+
+class KanbanCardUpdate(BaseModel):
+    """Modelo para atualizar um card"""
+    titulo: Optional[str] = None
+    descricao: Optional[str] = None
+    coluna_id: Optional[str] = None
+    posicao: Optional[int] = None
+    labels: Optional[List[KanbanLabel]] = None
+    assignees: Optional[List[str]] = None
+    checklist: Optional[List[dict]] = None
+    comentarios: Optional[List[dict]] = None
+    data_vencimento: Optional[str] = None
+
+class KanbanColuna(BaseModel):
+    """Modelo para colunas do Kanban"""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    titulo: str
+    posicao: int = 0  # Ordem da coluna no board
+    board_id: str = "default"  # ID do board (permitir múltiplos boards no futuro)
+    cor: Optional[str] = None  # Cor opcional para a coluna
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class KanbanColunaCreate(BaseModel):
+    """Modelo para criar uma coluna"""
+    titulo: str
+    board_id: str = "default"
+    cor: Optional[str] = None
+
+class KanbanColunaUpdate(BaseModel):
+    """Modelo para atualizar uma coluna"""
+    titulo: Optional[str] = None
+    posicao: Optional[int] = None
+    cor: Optional[str] = None
+
+# ============= ROTAS DO KANBAN =============
+
+# COLUNAS
+@api_router.get("/kanban/colunas")
+async def get_kanban_colunas(board_id: str = "default", current_user: dict = Depends(get_current_user)):
+    """Lista todas as colunas do board ordenadas por posição"""
+    colunas = await db.kanban_colunas.find({"board_id": board_id}).sort("posicao", 1).to_list(None)
+    for coluna in colunas:
+        if '_id' in coluna:
+            del coluna['_id']
+    return colunas
+
+@api_router.post("/kanban/colunas")
+async def create_kanban_coluna(coluna: KanbanColunaCreate, current_user: dict = Depends(get_current_user)):
+    """Cria uma nova coluna"""
+    # Pegar a última posição
+    ultima_coluna = await db.kanban_colunas.find_one(
+        {"board_id": coluna.board_id},
+        sort=[("posicao", -1)]
+    )
+    
+    nova_posicao = (ultima_coluna.get('posicao', -1) + 1) if ultima_coluna else 0
+    
+    nova_coluna = KanbanColuna(
+        **coluna.model_dump(),
+        posicao=nova_posicao
+    )
+    
+    coluna_dict = nova_coluna.model_dump()
+    await db.kanban_colunas.insert_one(coluna_dict)
+    
+    if '_id' in coluna_dict:
+        del coluna_dict['_id']
+    
+    return coluna_dict
+
+@api_router.put("/kanban/colunas/{coluna_id}")
+async def update_kanban_coluna(coluna_id: str, coluna: KanbanColunaUpdate, current_user: dict = Depends(get_current_user)):
+    """Atualiza uma coluna"""
+    update_data = {k: v for k, v in coluna.model_dump(exclude_unset=True).items() if v is not None}
+    
+    if update_data:
+        await db.kanban_colunas.update_one(
+            {"id": coluna_id},
+            {"$set": update_data}
+        )
+    
+    return {"message": "Coluna atualizada com sucesso"}
+
+@api_router.delete("/kanban/colunas/{coluna_id}")
+async def delete_kanban_coluna(coluna_id: str, current_user: dict = Depends(get_current_user)):
+    """Deleta uma coluna e todos os seus cards"""
+    # Deletar todos os cards da coluna
+    await db.kanban_cards.delete_many({"coluna_id": coluna_id})
+    
+    # Deletar a coluna
+    await db.kanban_colunas.delete_one({"id": coluna_id})
+    
+    return {"message": "Coluna e cards deletados com sucesso"}
+
+@api_router.post("/kanban/colunas/reordenar")
+async def reordenar_colunas(reordenacao: dict, current_user: dict = Depends(get_current_user)):
+    """Reordena as colunas
+    Espera: {"colunas": [{"id": "uuid1", "posicao": 0}, {"id": "uuid2", "posicao": 1}, ...]}
+    """
+    colunas = reordenacao.get('colunas', [])
+    
+    for coluna in colunas:
+        await db.kanban_colunas.update_one(
+            {"id": coluna['id']},
+            {"$set": {"posicao": coluna['posicao']}}
+        )
+    
+    return {"message": "Colunas reordenadas com sucesso"}
+
+# CARDS
+@api_router.get("/kanban/cards")
+async def get_kanban_cards(coluna_id: Optional[str] = None, board_id: str = "default", current_user: dict = Depends(get_current_user)):
+    """Lista todos os cards, opcionalmente filtrados por coluna"""
+    query = {}
+    
+    if coluna_id:
+        query['coluna_id'] = coluna_id
+    else:
+        # Se não filtrar por coluna, pegar cards de todas as colunas do board
+        colunas = await db.kanban_colunas.find({"board_id": board_id}).to_list(None)
+        coluna_ids = [c['id'] for c in colunas]
+        query['coluna_id'] = {"$in": coluna_ids}
+    
+    cards = await db.kanban_cards.find(query).sort("posicao", 1).to_list(None)
+    
+    for card in cards:
+        if '_id' in card:
+            del card['_id']
+    
+    return cards
+
+@api_router.post("/kanban/cards")
+async def create_kanban_card(card: KanbanCardCreate, current_user: dict = Depends(get_current_user)):
+    """Cria um novo card"""
+    # Pegar a última posição na coluna
+    ultimo_card = await db.kanban_cards.find_one(
+        {"coluna_id": card.coluna_id},
+        sort=[("posicao", -1)]
+    )
+    
+    nova_posicao = (ultimo_card.get('posicao', -1) + 1) if ultimo_card else 0
+    
+    novo_card = KanbanCard(
+        **card.model_dump(),
+        posicao=nova_posicao
+    )
+    
+    card_dict = novo_card.model_dump()
+    await db.kanban_cards.insert_one(card_dict)
+    
+    if '_id' in card_dict:
+        del card_dict['_id']
+    
+    return card_dict
+
+@api_router.get("/kanban/cards/{card_id}")
+async def get_kanban_card(card_id: str, current_user: dict = Depends(get_current_user)):
+    """Obtém detalhes de um card específico"""
+    card = await db.kanban_cards.find_one({"id": card_id})
+    
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    if '_id' in card:
+        del card['_id']
+    
+    return card
+
+@api_router.put("/kanban/cards/{card_id}")
+async def update_kanban_card(card_id: str, card: KanbanCardUpdate, current_user: dict = Depends(get_current_user)):
+    """Atualiza um card"""
+    update_data = {k: v for k, v in card.model_dump(exclude_unset=True).items() if v is not None}
+    update_data['updated_at'] = datetime.now(timezone.utc)
+    
+    if update_data:
+        result = await db.kanban_cards.update_one(
+            {"id": card_id},
+            {"$set": update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Card atualizado com sucesso"}
+
+@api_router.delete("/kanban/cards/{card_id}")
+async def delete_kanban_card(card_id: str, current_user: dict = Depends(get_current_user)):
+    """Deleta um card"""
+    result = await db.kanban_cards.delete_one({"id": card_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Card deletado com sucesso"}
+
+@api_router.post("/kanban/cards/mover")
+async def mover_card(movimento: dict, current_user: dict = Depends(get_current_user)):
+    """Move um card para outra coluna ou posição
+    Espera: {
+        "card_id": "uuid",
+        "coluna_destino_id": "uuid",
+        "nova_posicao": 0
+    }
+    """
+    card_id = movimento.get('card_id')
+    coluna_destino_id = movimento.get('coluna_destino_id')
+    nova_posicao = movimento.get('nova_posicao', 0)
+    
+    # Atualizar o card
+    await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                "coluna_id": coluna_destino_id,
+                "posicao": nova_posicao,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    
+    # Reordenar os outros cards da coluna de destino
+    cards_destino = await db.kanban_cards.find(
+        {"coluna_id": coluna_destino_id, "id": {"$ne": card_id}}
+    ).sort("posicao", 1).to_list(None)
+    
+    posicao_atual = 0
+    for card in cards_destino:
+        if posicao_atual == nova_posicao:
+            posicao_atual += 1
+        
+        await db.kanban_cards.update_one(
+            {"id": card['id']},
+            {"$set": {"posicao": posicao_atual}}
+        )
+        posicao_atual += 1
+    
+    return {"message": "Card movido com sucesso"}
+
+@api_router.post("/kanban/cards/{card_id}/checklist")
+async def add_checklist_item(card_id: str, item: dict, current_user: dict = Depends(get_current_user)):
+    """Adiciona um item ao checklist do card
+    Espera: {"texto": "Fazer algo"}
+    """
+    novo_item = {
+        "id": str(uuid.uuid4()),
+        "texto": item.get('texto', ''),
+        "concluido": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$push": {"checklist": novo_item},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return novo_item
+
+@api_router.put("/kanban/cards/{card_id}/checklist/{item_id}")
+async def update_checklist_item(card_id: str, item_id: str, item: dict, current_user: dict = Depends(get_current_user)):
+    """Atualiza um item do checklist
+    Espera: {"concluido": true} ou {"texto": "Novo texto"}
+    """
+    # Buscar o card
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Atualizar o item no checklist
+    checklist = card.get('checklist', [])
+    for i, check_item in enumerate(checklist):
+        if check_item['id'] == item_id:
+            if 'concluido' in item:
+                checklist[i]['concluido'] = item['concluido']
+            if 'texto' in item:
+                checklist[i]['texto'] = item['texto']
+            break
+    
+    # Salvar checklist atualizado
+    await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                "checklist": checklist,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    
+    return {"message": "Item atualizado com sucesso"}
+
+@api_router.delete("/kanban/cards/{card_id}/checklist/{item_id}")
+async def delete_checklist_item(card_id: str, item_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove um item do checklist"""
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$pull": {"checklist": {"id": item_id}},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Item removido com sucesso"}
+
+@api_router.post("/kanban/cards/{card_id}/comentario")
+async def add_comentario(card_id: str, comentario: dict, current_user: dict = Depends(get_current_user)):
+    """Adiciona um comentário ao card
+    Espera: {"autor": "Nome", "texto": "Comentário"}
+    """
+    novo_comentario = {
+        "id": str(uuid.uuid4()),
+        "autor": comentario.get('autor', current_user.get('username', 'Anônimo')),
+        "texto": comentario.get('texto', ''),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$push": {"comentarios": novo_comentario},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return novo_comentario
+
+@api_router.delete("/kanban/cards/{card_id}/comentario/{comentario_id}")
+async def delete_comentario(card_id: str, comentario_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove um comentário do card"""
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$pull": {"comentarios": {"id": comentario_id}},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Comentário removido com sucesso"}
+
+# ============= FIM KANBAN BOARD =============
+
 # Include the router in the main app
 app.include_router(api_router)
 
