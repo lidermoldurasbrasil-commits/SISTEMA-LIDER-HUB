@@ -1022,6 +1022,47 @@ export default function KanbanBoard() {
                     </div>
                   </div>
 
+                  {/* Data de Vencimento */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Data de Vencimento
+                    </h3>
+                    {cardSelecionado.data_vencimento ? (
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-lg">
+                          <Calendar className="w-4 h-4 text-gray-600" />
+                          <span className="text-sm font-medium text-gray-900">
+                            {new Date(cardSelecionado.data_vencimento).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: 'long',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <button 
+                          onClick={abrirModalData}
+                          className="text-sm text-indigo-600 hover:text-indigo-700"
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm mb-3">Nenhuma data definida</p>
+                    )}
+                    {!cardSelecionado.data_vencimento && (
+                      <button 
+                        onClick={abrirModalData}
+                        className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Adicionar data
+                      </button>
+                    )}
+                  </div>
+
                   {/* Descrição Editável */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
