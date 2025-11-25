@@ -479,7 +479,7 @@ export default function KanbanBoard() {
                               {(cards[coluna.id] || []).map((card, cardIndex) => (
                                 <Draggable key={card.id} draggableId={card.id} index={cardIndex}>
                                   {(provided, snapshot) => (
-                                    <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onClick={() => abrirDetalheCard(card)} className={`bg-white rounded-lg shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow ${snapshot.isDragging ? 'opacity-50 rotate-2' : ''}`}>
+                                    <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onClick={() => abrirDetalheCard(card)} className={`bg-white rounded-lg shadow-sm border border-gray-200 p-3 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all ${snapshot.isDragging ? 'opacity-50 rotate-2 shadow-lg' : ''}`}>
                                       {card.labels && card.labels.length > 0 && (
                                         <div className="flex gap-1 mb-2 flex-wrap">
                                           {card.labels.map((label, i) => (
