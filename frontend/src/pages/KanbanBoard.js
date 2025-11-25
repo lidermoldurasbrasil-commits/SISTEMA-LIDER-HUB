@@ -1428,14 +1428,14 @@ export default function KanbanBoard() {
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
-                            value={labelAtiva.name || ''}
+                            value={labelAtiva?.name !== undefined ? labelAtiva.name : ''}
                             onChange={(e) => {
                               const idx = labelsEditando.findIndex(l => l.color === color.value);
                               if (idx !== -1) atualizarNomeLabel(idx, e.target.value);
                             }}
                             onFocus={() => setEditandoLabelIndex(index)}
                             onBlur={() => setEditandoLabelIndex(null)}
-                            placeholder={`Ex: ${color.label}`}
+                            placeholder={`Digite o nome da etiqueta`}
                             className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm"
                           />
                           <button
