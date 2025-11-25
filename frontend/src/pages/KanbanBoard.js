@@ -1413,6 +1413,86 @@ export default function KanbanBoard() {
         </div>
       )}
 
+      {/* Modal Data de Vencimento */}
+      {modalDataAberto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Data de Vencimento</h2>
+              <button onClick={() => setModalDataAberto(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Data</label>
+                <input
+                  type="date"
+                  value={dataVencimento}
+                  onChange={(e) => setDataVencimento(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Hora</label>
+                <input
+                  type="time"
+                  value={horaVencimento}
+                  onChange={(e) => setHoraVencimento(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              {/* Preview */}
+              {dataVencimento && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                  <p className="text-sm text-gray-700 mb-1">Data selecionada:</p>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-indigo-600" />
+                    <p className="text-sm font-medium text-indigo-900">
+                      {new Date(`${dataVencimento}T${horaVencimento}`).toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 pt-6 border-t flex gap-3">
+              {cardSelecionado?.data_vencimento && (
+                <button
+                  onClick={removerData}
+                  className="bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100"
+                >
+                  Remover Data
+                </button>
+              )}
+              <div className="flex-1" />
+              <button
+                onClick={() => setModalDataAberto(false)}
+                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarData}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+                disabled={!dataVencimento}
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Capa */}
       {modalCapaAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
