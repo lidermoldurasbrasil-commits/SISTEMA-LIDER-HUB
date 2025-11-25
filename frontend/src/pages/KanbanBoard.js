@@ -999,32 +999,6 @@ export default function KanbanBoard() {
               {/* Conteúdo das Abas */}
               {abaAtiva === 'detalhes' && (
                 <div className="space-y-6">
-                  {/* Membros */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      Membros
-                    </h3>
-                    <div className="flex gap-2 flex-wrap mb-3">
-                      {cardSelecionado.assignees && cardSelecionado.assignees.length > 0 ? (
-                        cardSelecionado.assignees.map((membro, i) => (
-                          <div key={i} className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm flex items-center gap-2">
-                            {membro}
-                            <button onClick={() => removerMembro(membro)} className="hover:text-indigo-900">
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-gray-500 text-sm">Nenhum membro atribuído</p>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <input type="text" value={novoMembro} onChange={(e) => setNovoMembro(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && adicionarMembro()} placeholder="Nome do membro..." className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm" />
-                      <button onClick={adicionarMembro} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">Adicionar</button>
-                    </div>
-                  </div>
-
                   {/* Data de Vencimento */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
