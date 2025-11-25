@@ -8619,6 +8619,150 @@ async def atualizar_capa(card_id: str, capa_data: dict, current_user: dict = Dep
     """
     capa_url = capa_data.get('capa_url')
     capa_cor = capa_data.get('capa_cor')
+
+
+# ============ ROTAS PARA ATRIBUIR MEMBROS A CHECKLIST ============
+
+@api_router.put("/kanban/cards/{card_id}/checklist/{item_id}/assignee")
+async def atribuir_membro_checklist(card_id: str, item_id: str, assignee_data: dict, current_user: dict = Depends(get_current_user)):
+    """Atribui um membro a um item do checklist"""
+    assignee = assignee_data.get('assignee', '').strip()
+    
+    if not assignee:
+        raise HTTPException(status_code=400, detail="Nome do membro é obrigatório")
+    
+    # Buscar card
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "atribuiu_membro_checklist",
+        "descricao": f"Atribuiu {assignee} a um item do checklist",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id, "checklist.id": item_id},
+        {
+            "$set": {
+                "checklist.$.assignee": assignee,
+                "updated_at": datetime.now(timezone.utc)
+            },
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card ou item não encontrado")
+    
+    return {"message": "Membro atribuído com sucesso"}
+
+@api_router.delete("/kanban/cards/{card_id}/checklist/{item_id}/assignee")
+async def remover_membro_checklist(card_id: str, item_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove o membro atribuído de um item do checklist"""
+    # Buscar card
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "removeu_membro_checklist",
+        "descricao": f"Removeu membro de um item do checklist",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id, "checklist.id": item_id},
+        {
+            "$unset": {"checklist.$.assignee": ""},
+            "$set": {"updated_at": datetime.now(timezone.utc)},
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card ou item não encontrado")
+    
+    return {"message": "Membro removido com sucesso"}
+
+# ============ ROTAS PARA ATRIBUIR MEMBROS A QUESTÕES ============
+
+@api_router.put("/kanban/cards/{card_id}/questoes/{questao_id}/assignee")
+async def atribuir_membro_questao(card_id: str, questao_id: str, assignee_data: dict, current_user: dict = Depends(get_current_user)):
+    """Atribui um membro (responsável) a uma questão"""
+    assignee = assignee_data.get('assignee', '').strip()
+    
+    if not assignee:
+        raise HTTPException(status_code=400, detail="Nome do membro é obrigatório")
+    
+    # Buscar card
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "atribuiu_responsavel_questao",
+        "descricao": f"Atribuiu {assignee} como responsável de uma questão",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id, "questoes_resolver.id": questao_id},
+        {
+            "$set": {
+                "questoes_resolver.$.assignee": assignee,
+                "updated_at": datetime.now(timezone.utc)
+            },
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card ou questão não encontrados")
+    
+    return {"message": "Responsável atribuído com sucesso"}
+
+@api_router.delete("/kanban/cards/{card_id}/questoes/{questao_id}/assignee")
+async def remover_membro_questao(card_id: str, questao_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove o responsável de uma questão"""
+    # Buscar card
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "removeu_responsavel_questao",
+        "descricao": f"Removeu responsável de uma questão",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id, "questoes_resolver.id": questao_id},
+        {
+            "$unset": {"questoes_resolver.$.assignee": ""},
+            "$set": {"updated_at": datetime.now(timezone.utc)},
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card ou questão não encontrados")
+    
+    return {"message": "Responsável removido com sucesso"}
+
     
     update_data = {}
     if capa_url is not None:
