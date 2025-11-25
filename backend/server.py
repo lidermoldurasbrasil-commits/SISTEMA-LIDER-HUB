@@ -8391,6 +8391,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Montar pasta de uploads
+upload_dir = Path("/app/uploads")
+upload_dir.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
