@@ -920,27 +920,128 @@ export default function KanbanBoard() {
                     <button onClick={() => setModalAnexoAberto(true)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200 text-sm">Adicionar Anexo</button>
                   </div>
 
-                  {/* Checklist */}
+                  {/* Checklist com Sub-tarefas */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                       <CheckSquare className="w-4 h-4" />
                       Checklist
                     </h3>
                     {cardSelecionado.checklist && cardSelecionado.checklist.length > 0 ? (
-                      <div className="space-y-2 mb-3">
-                        {cardSelecionado.checklist.map((item) => (
-                          <div key={item.id} className="flex items-center gap-2">
-                            <input type="checkbox" checked={item.concluido} onChange={() => toggleItemChecklist(item.id, item.concluido)} className="w-4 h-4" />
-                            <span className={item.concluido ? 'line-through text-gray-500' : 'text-gray-900'}>{item.texto}</span>
-                          </div>
-                        ))}
+                      <div className="space-y-3 mb-3">
+                        {cardSelecionado.checklist.map((item) => {
+                          const progresso = calcularProgressoItem(item);
+                          const subtarefas = item.subtarefas || [];
+                          const totalSubtarefas = subtarefas.length;
+                          const subtarefasConcluidas = subtarefas.filter(s => s.concluido).length;
+
+                          return (
+                            <div key={item.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                              {/* Item Principal */}
+                              <div className="flex items-start gap-2">
+                                <input 
+                                  type="checkbox" 
+                                  checked={item.concluido} 
+                                  onChange={() => toggleItemChecklist(item.id, item.concluido)} 
+                                  className="w-4 h-4 mt-0.5" 
+                                />
+                                <div className="flex-1">
+                                  <span className={`${item.concluido ? 'line-through text-gray-500' : 'text-gray-900'} font-medium`}>
+                                    {item.texto}
+                                  </span>
+                                  
+                                  {/* Barra de Progresso das Sub-tarefas */}
+                                  {totalSubtarefas > 0 && (
+                                    <div className="mt-2">
+                                      <div className="flex justify-between text-xs text-gray-600 mb-1">
+                                        <span>{subtarefasConcluidas}/{totalSubtarefas} sub-tarefas concluídas</span>
+                                        <span>{progresso}%</span>
+                                      </div>
+                                      <div className="w-full bg-gray-200 rounded-full h-2">
+                                        <div 
+                                          className="bg-indigo-600 h-2 rounded-full transition-all duration-300" 
+                                          style={{ width: `${progresso}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Sub-tarefas */}
+                                  {totalSubtarefas > 0 && (
+                                    <div className="mt-3 ml-4 space-y-2">
+                                      {subtarefas.map((subtarefa) => (
+                                        <div key={subtarefa.id} className="flex items-center gap-2">
+                                          <input 
+                                            type="checkbox" 
+                                            checked={subtarefa.concluido} 
+                                            onChange={() => toggleSubtarefa(item.id, subtarefa.id, subtarefa.concluido)} 
+                                            className="w-3 h-3" 
+                                          />
+                                          <span className={`text-sm ${subtarefa.concluido ? 'line-through text-gray-500' : 'text-gray-700'}`}>
+                                            {subtarefa.texto}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Adicionar Sub-tarefa */}
+                                  {adicionandoSubtarefa === item.id ? (
+                                    <div className="mt-2 ml-4 flex gap-2">
+                                      <input
+                                        autoFocus
+                                        type="text"
+                                        value={textoSubtarefa}
+                                        onChange={(e) => setTextoSubtarefa(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && adicionarSubtarefa(item.id)}
+                                        placeholder="Nova sub-tarefa..."
+                                        className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
+                                      />
+                                      <button
+                                        onClick={() => adicionarSubtarefa(item.id)}
+                                        className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 text-xs"
+                                      >
+                                        Add
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setAdicionandoSubtarefa(null);
+                                          setTextoSubtarefa('');
+                                        }}
+                                        className="text-gray-600 hover:text-gray-900"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => setAdicionandoSubtarefa(item.id)}
+                                      className="mt-2 ml-4 text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      Adicionar sub-tarefa
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-gray-500 text-sm mb-3">Nenhum item no checklist</p>
                     )}
                     <div className="flex gap-2">
-                      <input type="text" value={novoItemChecklist} onChange={(e) => setNovoItemChecklist(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && adicionarItemChecklist()} placeholder="Adicionar item..." className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm" />
-                      <button onClick={adicionarItemChecklist} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">Adicionar</button>
+                      <input 
+                        type="text" 
+                        value={novoItemChecklist} 
+                        onChange={(e) => setNovoItemChecklist(e.target.value)} 
+                        onKeyPress={(e) => e.key === 'Enter' && adicionarItemChecklist()} 
+                        placeholder="Adicionar item..." 
+                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm" 
+                      />
+                      <button onClick={adicionarItemChecklist} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">
+                        Adicionar
+                      </button>
                     </div>
                   </div>
 
