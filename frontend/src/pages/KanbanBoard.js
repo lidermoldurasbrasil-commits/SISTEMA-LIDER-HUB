@@ -42,6 +42,8 @@ export default function KanbanBoard() {
   const [novoItemChecklist, setNovoItemChecklist] = useState('');
   const [novoComentario, setNovoComentario] = useState('');
   const [novoAnexo, setNovoAnexo] = useState({ nome: '', url: '', tipo: 'link' });
+  const [tipoAnexo, setTipoAnexo] = useState('link'); // 'link' ou 'upload'
+  const [arquivoUpload, setArquivoUpload] = useState(null);
   const [novoMembro, setNovoMembro] = useState('');
   const [modalAnexoAberto, setModalAnexoAberto] = useState(false);
   const [modalMoverAberto, setModalMoverAberto] = useState(false);
