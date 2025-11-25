@@ -34,7 +34,6 @@ export default function Layout({ user, onLogout }) {
       // Itens abaixo apenas para admin
       ...(!isProduction ? [
         { path: '/marketplace/returns', icon: RefreshCcw, label: 'Devoluções', testId: 'nav-returns' },
-        { path: '/marketplace/marketing', icon: Megaphone, label: 'Marketing', testId: 'nav-marketing' },
         { path: '/marketplace/purchases', icon: ShoppingCart, label: 'Compras', testId: 'nav-purchases' },
         { path: '/marketplace/accounts-payable', icon: DollarSign, label: 'Contas a Pagar', testId: 'nav-accounts-payable' },
         { path: '/marketplace/sales', icon: TrendingUp, label: 'Vendas', testId: 'nav-sales' },
@@ -43,6 +42,13 @@ export default function Layout({ user, onLogout }) {
         { path: '/marketplace/breakeven', icon: TrendingUp, label: 'Ponto de Equilíbrio', testId: 'nav-breakeven' },
       ] : [])
     ]},
+    
+    // === MARKETING === - apenas para admin
+    ...(!isProduction ? [{ section: 'Marketing', items: [
+      { path: '/gestao/marketing/dashboard', icon: BarChart3, label: 'Dashboard', testId: 'nav-marketing-dashboard' },
+      { path: '/gestao/marketing/membros', icon: Users, label: 'Equipe', testId: 'nav-marketing-membros' },
+      { path: '/gestao/marketing/calendario', icon: Calendar, label: 'Calendário', testId: 'nav-marketing-calendario' },
+    ]}] : []),
     
     // === FÁBRICA E LOJAS === - apenas para admin
     ...(!isProduction ? [{ section: 'Fábrica & Lojas', items: [
