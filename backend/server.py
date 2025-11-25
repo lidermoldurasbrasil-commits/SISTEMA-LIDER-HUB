@@ -8365,6 +8365,44 @@ async def adicionar_resposta_questao(card_id: str, questao_id: str, resposta_dat
     
     return nova_resposta
 
+@api_router.delete("/kanban/cards/{card_id}/questoes/{questao_id}/respostas/{resposta_id}")
+async def deletar_resposta_questao(card_id: str, questao_id: str, resposta_id: str, current_user: dict = Depends(get_current_user)):
+    """Deleta uma resposta de uma questão"""
+    # Buscar card e questão
+    card = await db.kanban_cards.find_one({"id": card_id})
+    if not card:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    questao = next((q for q in card.get('questoes_resolver', []) if q['id'] == questao_id), None)
+    if not questao:
+        raise HTTPException(status_code=404, detail="Questão não encontrada")
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "deletou_resposta",
+        "descricao": f"Deletou uma resposta de uma questão",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id, "questoes_resolver.id": questao_id},
+        {
+            "$pull": {
+                "questoes_resolver.$.respostas": {"id": resposta_id}
+            },
+            "$push": {"atividades": atividade},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card ou questão não encontrados")
+    
+    return {"message": "Resposta deletada com sucesso"}
+
+
 
 @api_router.put("/kanban/cards/{card_id}/descricao")
 async def atualizar_descricao(card_id: str, descricao_data: dict, current_user: dict = Depends(get_current_user)):
