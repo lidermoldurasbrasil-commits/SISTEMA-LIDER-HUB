@@ -8250,6 +8250,71 @@ async def toggle_subtarefa(card_id: str, item_id: str, subtarefa_id: str, subtar
     
     return {"message": "Sub-tarefa atualizada"}
 
+@api_router.put("/kanban/cards/{card_id}/capa")
+async def atualizar_capa(card_id: str, capa_data: dict, current_user: dict = Depends(get_current_user)):
+    """Atualiza a capa de um card
+    Espera: {"capa_url": "https://...", "capa_cor": "#hex"}
+    """
+    capa_url = capa_data.get('capa_url')
+    capa_cor = capa_data.get('capa_cor')
+    
+    update_data = {}
+    if capa_url is not None:
+        update_data['capa_url'] = capa_url
+    if capa_cor is not None:
+        update_data['capa_cor'] = capa_cor
+    
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "atualizou_capa",
+        "descricao": "Alterou a capa do card",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$set": {
+                **update_data,
+                "updated_at": datetime.now(timezone.utc)
+            },
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Capa atualizada"}
+
+@api_router.delete("/kanban/cards/{card_id}/capa")
+async def remover_capa(card_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove a capa de um card"""
+    # Registrar atividade
+    atividade = {
+        "id": str(uuid.uuid4()),
+        "tipo": "removeu_capa",
+        "descricao": "Removeu a capa do card",
+        "usuario": current_user.get('username', 'Usuário'),
+        "data": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.kanban_cards.update_one(
+        {"id": card_id},
+        {
+            "$unset": {"capa_url": "", "capa_cor": ""},
+            "$set": {"updated_at": datetime.now(timezone.utc)},
+            "$push": {"atividades": atividade}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    
+    return {"message": "Capa removida"}
+
 # ============= FIM KANBAN BOARD =============
 
 # Include the router in the main app
