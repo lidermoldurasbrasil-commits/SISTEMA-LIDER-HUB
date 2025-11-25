@@ -2000,18 +2000,79 @@ export default function KanbanBoard() {
                     ) : (
                       <p className="text-gray-500 text-sm mb-3">Nenhum item no checklist</p>
                     )}
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={novoItemChecklist} 
-                        onChange={(e) => setNovoItemChecklist(e.target.value)} 
-                        onKeyPress={(e) => e.key === 'Enter' && adicionarItemChecklist()} 
-                        placeholder="Adicionar item..." 
-                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm" 
-                      />
-                      <button onClick={adicionarItemChecklist} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">
-                        Adicionar
-                      </button>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={novoItemChecklist} 
+                          onChange={(e) => setNovoItemChecklist(e.target.value)} 
+                          onKeyPress={(e) => e.key === 'Enter' && !mostrarSeletorMembroNovoItem && adicionarItemChecklist()} 
+                          placeholder="Adicionar item..." 
+                          className="flex-1 border-2 border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" 
+                        />
+                        <button 
+                          onClick={() => setMostrarSeletorMembroNovoItem(!mostrarSeletorMembroNovoItem)}
+                          className={`p-2 rounded-lg border-2 transition-colors ${
+                            membroNovoItem 
+                              ? 'border-indigo-500 bg-indigo-50' 
+                              : 'border-gray-300 hover:border-indigo-300'
+                          }`}
+                          title="Atribuir membro"
+                        >
+                          {membroNovoItem ? (
+                            <MemberAvatar username={membroNovoItem} size="xs" />
+                          ) : (
+                            <User className="w-4 h-4 text-gray-600" />
+                          )}
+                        </button>
+                        <button 
+                          onClick={adicionarItemChecklist} 
+                          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium shadow-md hover:shadow-lg transition-all"
+                          disabled={!novoItemChecklist.trim()}
+                        >
+                          Adicionar
+                        </button>
+                      </div>
+                      
+                      {/* Dropdown de Seleção de Membro */}
+                      {mostrarSeletorMembroNovoItem && (
+                        <div className="bg-gray-50 border-2 border-indigo-200 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-gray-700">Atribuir a:</span>
+                            {membroNovoItem && (
+                              <button
+                                onClick={() => setMembroNovoItem('')}
+                                className="text-xs text-red-600 hover:text-red-700 font-medium"
+                              >
+                                Limpar
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                            {membrosDisponiveis.length > 0 ? (
+                              membrosDisponiveis.map((membro) => (
+                                <button
+                                  key={membro.id}
+                                  onClick={() => {
+                                    setMembroNovoItem(membro.username);
+                                    setMostrarSeletorMembroNovoItem(false);
+                                  }}
+                                  className={`p-2 rounded-lg text-left flex items-center gap-2 transition-all ${
+                                    membroNovoItem === membro.username
+                                      ? 'bg-indigo-100 border-2 border-indigo-400'
+                                      : 'bg-white border-2 border-gray-200 hover:border-indigo-300'
+                                  }`}
+                                >
+                                  <MemberAvatar username={membro.username} size="xs" />
+                                  <span className="text-xs font-medium text-gray-900 truncate">{membro.username}</span>
+                                </button>
+                              ))
+                            ) : (
+                              <p className="text-xs text-gray-500 col-span-2 text-center py-2">Nenhum membro disponível</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
