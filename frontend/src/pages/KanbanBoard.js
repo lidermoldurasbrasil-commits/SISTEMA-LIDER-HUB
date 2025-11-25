@@ -850,13 +850,46 @@ export default function KanbanBoard() {
                     </div>
                   </div>
 
-                  {/* Descrição */}
-                  {cardSelecionado.descricao && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2">Descrição</h3>
-                      <p className="text-gray-900 whitespace-pre-wrap">{cardSelecionado.descricao}</p>
+                  {/* Descrição Editável */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-sm font-semibold text-gray-700">Descrição</h3>
+                      {!editandoDescricao && (
+                        <button onClick={iniciarEdicaoDescricao} className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                          <Edit2 className="w-3 h-3" />
+                          Editar
+                        </button>
+                      )}
                     </div>
-                  )}
+                    {editandoDescricao ? (
+                      <div className="space-y-2">
+                        <textarea
+                          autoFocus
+                          value={descricaoTemp}
+                          onChange={(e) => setDescricaoTemp(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                          rows="4"
+                          placeholder="Adicione uma descrição mais detalhada..."
+                        />
+                        <div className="flex gap-2">
+                          <button onClick={salvarDescricao} className="bg-indigo-600 text-white px-4 py-1.5 rounded hover:bg-indigo-700 text-sm">
+                            Salvar
+                          </button>
+                          <button onClick={() => setEditandoDescricao(false)} className="text-gray-600 hover:text-gray-900 px-4 py-1.5 text-sm">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        {cardSelecionado.descricao ? (
+                          <p className="text-gray-900 whitespace-pre-wrap text-sm">{cardSelecionado.descricao}</p>
+                        ) : (
+                          <p className="text-gray-500 text-sm italic">Clique em "Editar" para adicionar uma descrição...</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Anexos */}
                   <div>
