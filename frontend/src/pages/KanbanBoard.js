@@ -1282,6 +1282,113 @@ export default function KanbanBoard() {
         </div>
       )}
 
+      {/* Modal Capa */}
+      {modalCapaAberto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Capa do Cartão</h2>
+              <button onClick={() => setModalCapaAberto(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Abas */}
+            <div className="flex border-b mb-4">
+              <button
+                onClick={() => setTipoCapaSelecionado('cor')}
+                className={`px-4 py-2 font-medium ${tipoCapaSelecionado === 'cor' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-600'}`}
+              >
+                Cores
+              </button>
+              <button
+                onClick={() => setTipoCapaSelecionado('imagem')}
+                className={`px-4 py-2 font-medium ${tipoCapaSelecionado === 'imagem' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-600'}`}
+              >
+                Imagem
+              </button>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="space-y-4">
+              {tipoCapaSelecionado === 'cor' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Escolha uma cor:</label>
+                  <div className="grid grid-cols-5 gap-3">
+                    {[
+                      '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
+                      '#EC4899', '#14B8A6', '#F97316', '#06B6D4', '#6366F1'
+                    ].map((cor) => (
+                      <button
+                        key={cor}
+                        onClick={() => setCapaCor(cor)}
+                        className={`h-16 rounded-lg ${capaCor === cor ? 'ring-4 ring-offset-2 ring-gray-400' : ''}`}
+                        style={{ backgroundColor: cor }}
+                      />
+                    ))}
+                  </div>
+                  
+                  {/* Preview */}
+                  {capaCor && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                      <div className="w-full h-32 rounded-lg" style={{ backgroundColor: capaCor }} />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">URL da Imagem:</label>
+                  <input
+                    type="url"
+                    value={capaUrl}
+                    onChange={(e) => setCapaUrl(e.target.value)}
+                    placeholder="https://exemplo.com/imagem.jpg"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-3"
+                  />
+                  
+                  <p className="text-xs text-gray-500 mb-3">Cole o link de uma imagem da web (Unsplash, Pinterest, etc)</p>
+                  
+                  {/* Preview */}
+                  {capaUrl && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                      <div className="w-full h-32 rounded-lg overflow-hidden bg-gray-100">
+                        <img src={capaUrl} alt="Preview" className="w-full h-full object-cover" onError={(e) => e.target.src = ''} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 pt-6 border-t flex gap-3">
+              {(cardSelecionado?.capa_url || cardSelecionado?.capa_cor) && (
+                <button
+                  onClick={removerCapa}
+                  className="bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100"
+                >
+                  Remover Capa
+                </button>
+              )}
+              <div className="flex-1" />
+              <button
+                onClick={() => setModalCapaAberto(false)}
+                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarCapa}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Etiquetas Editáveis */}
       {modalLabelAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
