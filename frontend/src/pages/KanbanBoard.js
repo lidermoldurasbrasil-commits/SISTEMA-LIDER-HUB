@@ -1005,7 +1005,11 @@ export default function KanbanBoard() {
                                         {...provided.draggableProps} 
                                         {...provided.dragHandleProps} 
                                         onClick={() => abrirDetalheCard(card)} 
-                                        className={`bg-white rounded-lg shadow-md hover:shadow-xl border-2 border-gray-200 cursor-pointer hover:border-indigo-300 transition-all duration-200 overflow-hidden transform hover:-translate-y-1 ${snapshot.isDragging ? 'opacity-70 rotate-3 shadow-2xl scale-105' : ''}`}
+                                        className={`bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.25)] border-[3px] border-gray-300 cursor-pointer hover:border-indigo-400 transition-all duration-300 overflow-hidden transform hover:-translate-y-2 hover:scale-[1.02] ${snapshot.isDragging ? 'opacity-70 rotate-3 shadow-[0_30px_80px_rgb(0,0,0,0.35)] scale-105 ring-4 ring-indigo-300' : ''}`}
+                                        style={{ 
+                                          backdropFilter: 'blur(10px)',
+                                          background: 'linear-gradient(135deg, #ffffff 0%, #fefefe 100%)'
+                                        }}
                                       >
                                         {/* Capa do Card */}
                                         {(card.capa_url || card.capa_cor) && (
