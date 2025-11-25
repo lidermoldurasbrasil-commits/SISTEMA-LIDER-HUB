@@ -1110,7 +1110,7 @@ export default function KanbanBoard() {
                 <Copy className="w-4 h-4" />
                 Copiar
               </button>
-              <button onClick={() => setModalLabelAberto(true)} className="w-full bg-white hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
+              <button onClick={abrirModalLabels} className="w-full bg-white hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm text-left flex items-center gap-2">
                 <Tag className="w-4 h-4" />
                 Etiquetas
               </button>
