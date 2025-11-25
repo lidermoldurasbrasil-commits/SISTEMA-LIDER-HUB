@@ -93,6 +93,11 @@ export default function KanbanBoard() {
   const [novoMembro, setNovoMembro] = useState('');
   const [modalAnexoAberto, setModalAnexoAberto] = useState(false);
   const [modalMoverAberto, setModalMoverAberto] = useState(false);
+  
+  // Estados para "A Resolver"
+  const [novaQuestao, setNovaQuestao] = useState('');
+  const [questaoExpandida, setQuestaoExpandida] = useState(null);
+  const [novaResposta, setNovaResposta] = useState('');
   const [modalCopiarAberto, setModalCopiarAberto] = useState(false);
   const [colunaSelecionadaMover, setColunaSelecionadaMover] = useState(null);
   const [modalLabelAberto, setModalLabelAberto] = useState(false);
