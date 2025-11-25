@@ -2796,13 +2796,14 @@ export default function KanbanBoard() {
                           checked={isChecked}
                           onChange={() => {
                             if (isChecked) {
-                              // Remover
+                              // Remover (mas manter nome em labelsGlobais)
                               const novasLabels = labelsEditando.filter(l => l.color !== color.value);
                               setLabelsEditando(novasLabels);
                               salvarLabels(novasLabels);
                             } else {
-                              // Adicionar
-                              const novasLabels = [...labelsEditando, { name: '', color: color.value }];
+                              // Adicionar (usar nome de labelsGlobais se existir)
+                              const nomePersonalizado = labelsGlobais[color.value] || '';
+                              const novasLabels = [...labelsEditando, { name: nomePersonalizado, color: color.value }];
                               setLabelsEditando(novasLabels);
                               salvarLabels(novasLabels);
                             }
@@ -2818,13 +2819,14 @@ export default function KanbanBoard() {
                               setLabelsEditando(novasLabels);
                               salvarLabels(novasLabels);
                             } else {
-                              const novasLabels = [...labelsEditando, { name: '', color: color.value }];
+                              const nomePersonalizado = labelsGlobais[color.value] || '';
+                              const novasLabels = [...labelsEditando, { name: nomePersonalizado, color: color.value }];
                               setLabelsEditando(novasLabels);
                               salvarLabels(novasLabels);
                             }
                           }}
                         >
-                          {labelExistente?.name || color.label}
+                          {labelsGlobais[color.value] || labelExistente?.name || color.label}
                         </div>
                         <button
                           onClick={() => {
