@@ -135,6 +135,9 @@ export default function KanbanBoard() {
   const [novaLabel, setNovaLabel] = useState({ name: '', color: 'red' });
   const [editandoLabel, setEditandoLabel] = useState(null);
   
+  // Estado global para nomes personalizados de etiquetas (persiste mesmo quando desmarcada)
+  const [labelsGlobais, setLabelsGlobais] = useState({});
+  
   // Estados para descrição editável
   const [editandoDescricao, setEditandoDescricao] = useState(false);
   const [descricaoTemp, setDescricaoTemp] = useState('');
