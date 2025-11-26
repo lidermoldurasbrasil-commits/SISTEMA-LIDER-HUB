@@ -5,7 +5,7 @@ import sys
 import json
 
 class ProjectsEndpointTester:
-    def __init__(self, base_url="https://factory-mgmt-1.preview.emergentagent.com"):
+    def __init__(self, base_url="https://lider-connect.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
